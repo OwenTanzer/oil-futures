@@ -2,8 +2,12 @@
 MediaFlow worker — runs collect + classify on a fixed interval,
 and commits a daily data snapshot to GitHub for archival.
 
-Deploy as a second Railway service from the same repo with:
-  start command: python worker.py
+Sole writer of MediaFlow data. Launched as a child process of
+supervisor.py (the Railway startCommand); not meant to be run as its
+own Railway service. Owns a crash-safe lease (worker_state.py) so a
+hard-killed cycle self-heals via expiry rather than leaving a
+permanent stale lock, and records cycle-state for the dashboard to
+display as read-only freshness/health.
 
 Environment variables:
   DATA_DIR               path to shared Railway volume (default: repo dir)
@@ -14,16 +18,20 @@ Environment variables:
 import os
 import shutil
 import subprocess
+import threading
 import time
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import rss_collect
 import mediaflow_classify
+import worker_state
 
 HERE = Path(__file__).parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", HERE))
 INTERVAL = int(os.environ.get("COLLECT_INTERVAL_SECONDS", 900))
+POLL_TICK_SECONDS = 5
+HEARTBEAT_INTERVAL_SECONDS = 30
 
 _last_snapshot_date: date | None = None
 _git_ready = False
@@ -89,12 +97,47 @@ def daily_snapshot() -> None:
 
 
 def run_cycle() -> None:
-    print("--- collect ---")
-    rss_collect.run()
-    print("--- classify ---")
-    mediaflow_classify.run()
-    if _git_ready:
-        daily_snapshot()
+    lease = worker_state.try_acquire()
+    if lease is None:
+        print("[worker] lease held by another owner — skipping this cycle")
+        return
+
+    cycle_id = lease.cycle_id
+    worker_state.record_cycle_start(cycle_id)
+    print(f"[worker] cycle {cycle_id} start")
+
+    stop_heartbeat = threading.Event()
+
+    def _heartbeat_loop() -> None:
+        while not stop_heartbeat.wait(HEARTBEAT_INTERVAL_SECONDS):
+            worker_state.heartbeat(lease)
+
+    heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    heartbeat_thread.start()
+
+    started = time.perf_counter()
+    try:
+        print("--- collect ---")
+        items_collected = rss_collect.run()
+        print("--- classify ---")
+        items_classified = mediaflow_classify.run()
+        if _git_ready:
+            daily_snapshot()
+
+        duration = time.perf_counter() - started
+        next_scheduled_at = datetime.now(timezone.utc) + timedelta(seconds=INTERVAL)
+        worker_state.record_cycle_success(
+            cycle_id, duration, items_collected, items_classified, next_scheduled_at
+        )
+        print(f"[worker] cycle {cycle_id} success in {duration:.1f}s")
+    except Exception as e:
+        worker_state.record_cycle_error(cycle_id, str(e))
+        print(f"[worker] cycle {cycle_id} FAILED: {e}")
+        raise
+    finally:
+        stop_heartbeat.set()
+        heartbeat_thread.join(timeout=5)
+        worker_state.release(lease)
 
 
 if __name__ == "__main__":
@@ -105,4 +148,12 @@ if __name__ == "__main__":
             run_cycle()
         except Exception as e:
             print(f"[ERROR] cycle failed: {e}")
-        time.sleep(INTERVAL)
+
+        elapsed = 0
+        while elapsed < INTERVAL:
+            tick = min(POLL_TICK_SECONDS, INTERVAL - elapsed)
+            time.sleep(tick)
+            elapsed += tick
+            if worker_state.consume_refresh_if_pending():
+                print("[worker] refresh request received — starting cycle early")
+                break
