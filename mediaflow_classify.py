@@ -264,6 +264,11 @@ def run(arcs: list[str] = ARCS) -> int:
         f"Done - {newly_classified} classified, {failed} failed "
         f"in {elapsed:.1f}s. Total stored: {len(classified_by_id)}"
     )
+    if failed:
+        # Successful batches are already persisted above. Raise so the caller
+        # (worker.py) records this as a failed/partial cycle rather than a
+        # clean success — a silently-stuck classifier must not look healthy.
+        raise RuntimeError(f"{failed} of {len(unclassified)} items failed classification")
     return newly_classified
 
 

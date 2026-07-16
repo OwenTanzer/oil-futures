@@ -4,10 +4,11 @@ and commits a daily data snapshot to GitHub for archival.
 
 Sole writer of MediaFlow data. Launched as a child process of
 supervisor.py (the Railway startCommand); not meant to be run as its
-own Railway service. Owns a crash-safe lease (worker_state.py) so a
-hard-killed cycle self-heals via expiry rather than leaving a
-permanent stale lock, and records cycle-state for the dashboard to
-display as read-only freshness/health.
+own Railway service. Holds an OS-level advisory lock (worker_state.py)
+for the duration of each cycle, so a hard-killed cycle releases
+immediately via the kernel rather than leaving a permanent stale lock,
+and records cycle-state for the dashboard to display as read-only
+freshness/health.
 
 Environment variables:
   DATA_DIR               path to shared Railway volume (default: repo dir)
@@ -37,18 +38,21 @@ _last_snapshot_date: date | None = None
 _git_ready = False
 
 
+GIT_TIMEOUT_SECONDS = 30
+
+
 def git_setup() -> bool:
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
         print("[snapshot] GITHUB_TOKEN not set — daily snapshots disabled")
         return False
     try:
-        subprocess.run(["git", "config", "user.name", "MediaFlow Worker"], cwd=HERE, check=True)
-        subprocess.run(["git", "config", "user.email", "worker@mediaflow.local"], cwd=HERE, check=True)
+        subprocess.run(["git", "config", "user.name", "MediaFlow Worker"], cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS)
+        subprocess.run(["git", "config", "user.email", "worker@mediaflow.local"], cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS)
         subprocess.run(
             ["git", "remote", "set-url", "origin",
              f"https://x-token:{token}@github.com/OwenTanzer/oil-futures.git"],
-            cwd=HERE, check=True,
+            cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS,
         )
         print("[snapshot] git configured")
         return True
@@ -58,6 +62,9 @@ def git_setup() -> bool:
 
 
 def daily_snapshot() -> None:
+    """Archival only — must never be able to block the ingestion cycle.
+    Every subprocess call is bounded, and the caller (run_cycle) treats any
+    exception from this function as non-fatal to the cycle overall."""
     global _last_snapshot_date
     today = date.today()
     if _last_snapshot_date == today:
@@ -79,14 +86,14 @@ def daily_snapshot() -> None:
 
     add = subprocess.run(
         ["git", "add", f"snapshots/{today.isoformat()}/"],
-        cwd=HERE, capture_output=True, text=True,
+        cwd=HERE, capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS,
     )
     commit = subprocess.run(
         ["git", "commit", "-m", f"snapshot: {today.isoformat()}"],
-        cwd=HERE, capture_output=True, text=True,
+        cwd=HERE, capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS,
     )
     if commit.returncode == 0:
-        subprocess.run(["git", "push"], cwd=HERE, check=True)
+        subprocess.run(["git", "push"], cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS)
         print(f"[snapshot] pushed {today.isoformat()}")
         _last_snapshot_date = today
     elif "nothing to commit" in commit.stdout:
@@ -121,8 +128,15 @@ def run_cycle() -> None:
         items_collected = rss_collect.run()
         print("--- classify ---")
         items_classified = mediaflow_classify.run()
+
         if _git_ready:
-            daily_snapshot()
+            try:
+                daily_snapshot()
+            except Exception as e:
+                # Archival is best-effort and must never fail the ingestion
+                # cycle it rides along with — a stalled `git push` should not
+                # look like a stuck collector.
+                print(f"[worker] snapshot failed (non-fatal): {e}")
 
         duration = time.perf_counter() - started
         next_scheduled_at = datetime.now(timezone.utc) + timedelta(seconds=INTERVAL)
