@@ -22,6 +22,7 @@ KEYS_FILE = Path(r"C:\Users\Owen\.claude\keys.env")
 BATCH_SIZE = 30
 MAX_CONCURRENT_BATCHES = 4
 MAX_RETRIES = 2
+CLASSIFY_TIMEOUT_SECONDS = 90
 
 ARCS = [
     "KINETIC",
@@ -128,6 +129,7 @@ def classify_batch(
             "role": "user",
             "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
         }],
+        timeout=CLASSIFY_TIMEOUT_SECONDS,
     )
     return parse_response(response.content[0].text)
 
@@ -262,6 +264,11 @@ def run(arcs: list[str] = ARCS) -> int:
         f"Done - {newly_classified} classified, {failed} failed "
         f"in {elapsed:.1f}s. Total stored: {len(classified_by_id)}"
     )
+    if failed:
+        # Successful batches are already persisted above. Raise so the caller
+        # (worker.py) records this as a failed/partial cycle rather than a
+        # clean success — a silently-stuck classifier must not look healthy.
+        raise RuntimeError(f"{failed} of {len(unclassified)} items failed classification")
     return newly_classified
 
 

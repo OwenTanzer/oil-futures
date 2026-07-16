@@ -466,7 +466,7 @@ def append_to_log(items: list[dict]) -> None:
         f.writelines(lines)
 
 
-def run():
+def run() -> int:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     print(f"MediaFlow collect — {now}")
 
@@ -506,6 +506,7 @@ def run():
         print(f"  No new relevant items in {elapsed:.1f}s  (seen total: {seen_before})")
 
     print(f"  Log: {LOG_FILE}")
+    return len(new_items)
 
 
 if __name__ == "__main__":

@@ -6,8 +6,6 @@ Run with: streamlit run mediaflow_app.py
 import base64
 import json
 import os
-import threading
-import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -16,14 +14,12 @@ import streamlit as st
 from breaking_news_view import render_breaking_news
 from eia_terminal import render_terminal
 from mediaflow_chat import render_chat
+from worker_state import load_cycle_state, request_refresh
 
 HERE            = Path(__file__).parent
 DATA_DIR        = Path(os.environ.get("DATA_DIR", HERE))
 CLASSIFIED_FILE = DATA_DIR / "mediaflow_classified.json"
 ITEMS_FILE      = DATA_DIR / "mediaflow_items.json"
-LOCK_FILE       = DATA_DIR / ".collect_lock"
-
-AUTO_COLLECT_INTERVAL_SECONDS = 300  # 5 minutes
 
 ARC_COLOR = {
     "KINETIC":        "#c0392b",
@@ -215,46 +211,45 @@ def render_item(item: dict, show_arc_tag: bool = False) -> None:
     )
 
 
-# ── pipeline triggers ─────────────────────────────────────────────────────────
+# ── status/update fragment ────────────────────────────────────────────────────
 
-def run_collect() -> None:
-    import rss_collect
-    rss_collect.run()
-
-
-def run_classify() -> int:
-    import mediaflow_classify
-    return mediaflow_classify.run()
+WORKER_INTERVAL_SECONDS = int(os.environ.get("COLLECT_INTERVAL_SECONDS", 900))
+STALE_THRESHOLD_SECONDS = WORKER_INTERVAL_SECONDS * 2
 
 
-_collect_last: float = 0.0
-_collect_lock = threading.Lock()
+@st.fragment(run_every=10)
+def render_status_and_update() -> None:
+    """Read-only freshness/health display, plus the refresh-request button.
+    The dashboard never runs collect/classify itself — worker.py is the sole
+    writer; this only enqueues a request and polls the worker's cycle-state."""
 
+    state = load_cycle_state()
+    now = datetime.now(timezone.utc)
 
-def _collect_loop() -> None:
-    global _collect_last
-    # collect immediately on startup, then on interval
-    while True:
-        if LOCK_FILE.exists():
-            time.sleep(30)
-            continue
-        try:
-            LOCK_FILE.touch()
-            run_collect()
-            run_classify()
-            _collect_last = time.time()
-        except Exception as e:
-            print(f"[collector] error: {e}")
-        finally:
-            LOCK_FILE.unlink(missing_ok=True)
-        time.sleep(AUTO_COLLECT_INTERVAL_SECONDS)
+    updated_display = "—"
+    ts_attr = ""
+    health_html = ""
 
+    if state and state.get("last_success"):
+        last_success = datetime.strptime(state["last_success"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        updated_display = last_success.strftime("%H:%M UTC")
+        ts_attr = f'data-utc="{state["last_success"]}"'
 
-@st.cache_resource
-def start_background_collector() -> None:
-    """Starts once per server process — runs collect regardless of browser sessions."""
-    t = threading.Thread(target=_collect_loop, daemon=True)
-    t.start()
+        age = (now - last_success).total_seconds()
+        if age > STALE_THRESHOLD_SECONDS:
+            health_html = '<div style="text-align:center;font-size:0.55em;color:#c0392b;font-family:\'Oxanium\',monospace;font-weight:700">stale — no recent cycle</div>'
+
+    if state and state.get("last_error"):
+        health_html = '<div style="text-align:center;font-size:0.55em;color:#c0392b;font-family:\'Oxanium\',monospace;font-weight:700">last cycle failed</div>'
+
+    st.markdown(
+        f"<div style='text-align:center;font-size:0.58em;color:#999;font-family:\"Oxanium\",monospace;font-weight:700;white-space:nowrap;padding:1px 0 3px'>updated <span {ts_attr}>{updated_display}</span></div>"
+        + health_html,
+        unsafe_allow_html=True,
+    )
+    if st.button("Update", type="secondary", use_container_width=True):
+        request_refresh()
+        st.toast("Refresh requested — worker will pick it up shortly.")
 
 
 # ── live feed fragment ────────────────────────────────────────────────────────
@@ -311,8 +306,6 @@ def main() -> None:
         initial_sidebar_state="expanded",
     )
 
-    start_background_collector()
-
     if st.session_state.get("mode") == "terminal":
         render_terminal()
         return
@@ -362,15 +355,6 @@ def main() -> None:
     )
 
     # ── header ────────────────────────────────────────────────────────────────
-    updated_display = "—"
-    updated_iso = ""
-    if CLASSIFIED_FILE.exists():
-        mtime = datetime.fromtimestamp(CLASSIFIED_FILE.stat().st_mtime, tz=timezone.utc)
-        updated_display = mtime.strftime("%H:%M UTC")
-        updated_iso = mtime.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    ts_attr = f'data-utc="{updated_iso}"' if updated_iso else ""
-
     col1, col2 = st.columns([7.8, 1.775])
     with col1:
         img_b64 = base64.b64encode((HERE / "55cb4ced-c8a8-4188-9ff7-376c5a52935b.png").read_bytes()).decode()
@@ -379,16 +363,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
     with col2:
-        st.markdown(
-            f"<div style='text-align:center;font-size:0.58em;color:#999;font-family:\"Oxanium\",monospace;font-weight:700;white-space:nowrap;padding:1px 0 3px'>updated <span {ts_attr}>{updated_display}</span></div>",
-            unsafe_allow_html=True,
-        )
-        if st.button("Update", type="secondary", use_container_width=True):
-            with st.spinner("…"):
-                run_collect()
-                classified = run_classify()
-            st.toast(f"{classified} new items classified.")
-            st.rerun()
+        render_status_and_update()
         ba, bb, bc, bd = st.columns(4)
         with ba:
             if st.button("⊹", key="goto_terminal", help="Terminal  [T]", use_container_width=True):
