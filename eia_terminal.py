@@ -14,6 +14,7 @@ from typing import Any
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -328,7 +329,7 @@ def _execute(cmd_str: str) -> list[dict[str, Any]]:
 
 
 def _inject_terminal_js() -> None:
-    st.iframe(
+    components.html(
         """
         <script>
         (function() {

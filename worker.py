@@ -16,6 +16,7 @@ Environment variables:
   GITHUB_TOKEN           personal access token for daily snapshot commits
 """
 
+import base64
 import os
 import shutil
 import subprocess
@@ -34,6 +35,8 @@ INTERVAL = int(os.environ.get("COLLECT_INTERVAL_SECONDS", 900))
 POLL_TICK_SECONDS = 5
 HEARTBEAT_INTERVAL_SECONDS = 30
 
+GITHUB_REPO_URL = "https://github.com/OwenTanzer/oil-futures.git"
+
 _last_snapshot_date: date | None = None
 _git_ready = False
 
@@ -49,9 +52,12 @@ def git_setup() -> bool:
     try:
         subprocess.run(["git", "config", "user.name", "MediaFlow Worker"], cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS)
         subprocess.run(["git", "config", "user.email", "worker@mediaflow.local"], cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS)
+        # Deliberately no credentials embedded in the remote URL — that would
+        # persist GITHUB_TOKEN in plaintext in .git/config on disk, readable
+        # by anything with filesystem access to the container. Auth is
+        # instead supplied per-invocation at push time (_authed_push_cmd).
         subprocess.run(
-            ["git", "remote", "set-url", "origin",
-             f"https://x-token:{token}@github.com/OwenTanzer/oil-futures.git"],
+            ["git", "remote", "set-url", "origin", GITHUB_REPO_URL],
             cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS,
         )
         print("[snapshot] git configured")
@@ -59,6 +65,12 @@ def git_setup() -> bool:
     except Exception as e:
         print(f"[snapshot] git setup failed: {e}")
         return False
+
+
+def _authed_push_cmd() -> list[str]:
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    auth_header = base64.b64encode(f"x-token:{token}".encode()).decode()
+    return ["git", "-c", f"http.extraHeader=AUTHORIZATION: basic {auth_header}", "push", "origin", "HEAD"]
 
 
 def daily_snapshot() -> None:
@@ -93,7 +105,7 @@ def daily_snapshot() -> None:
         cwd=HERE, capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS,
     )
     if commit.returncode == 0:
-        subprocess.run(["git", "push"], cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS)
+        subprocess.run(_authed_push_cmd(), cwd=HERE, check=True, timeout=GIT_TIMEOUT_SECONDS)
         print(f"[snapshot] pushed {today.isoformat()}")
         _last_snapshot_date = today
     elif "nothing to commit" in commit.stdout:

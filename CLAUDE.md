@@ -1,6 +1,67 @@
 # Oil Futures — Project Documentation
 
 ---
+## Security
+
+The dashboard (`mediaflow_app.py`, all modes: newscenter/terminal/chat/breaking_news)
+is gated by `auth.py::require_password()` — a single shared password read from the
+`MEDIAFLOW_APP_PASSWORD` env var. **The app refuses to start if this var is unset**
+(fails closed, not open) — set it in Railway's environment variables before
+deploying. Includes IP-keyed lockout after 5 failed attempts in 5 minutes.
+
+Why: the whole app was public with no auth at all, and the agent chat
+(`mediaflow_chat.py`) spends the owner's live Anthropic API key on every message
+with no rate limiting — an unauthenticated visitor could run up arbitrary API cost.
+
+`render_item()` in `mediaflow_app.py` also had a stored-XSS hole: `title`/`source`/
+`link` come from external RSS feeds and news aggregators (attacker-influenceable)
+and were interpolated into raw HTML (`unsafe_allow_html=True`) unescaped. Now
+`html.escape`'d, and `link` is scheme-validated (`http`/`https` only) before use in
+an `href`, following the same pattern already used in `breaking_news_view.py`.
+
+### Second pass (outside + insider threat model)
+
+- **`st.iframe` doesn't exist** — it was never a real Streamlit API (confirmed
+  absent from 1.50.0, the current latest release), called in 5 places
+  (`mediaflow_app.py` x2, `mediaflow_chat.py`, `eia_terminal.py`,
+  `breaking_news_view.py`). Every page render crashed immediately after login.
+  Replaced with `streamlit.components.v1.html(...)`, which has an identical
+  signature to how the code was already calling it and renders in a same-origin
+  iframe (`window.parent.document` access, which this code relies on, still works).
+- **Indirect prompt injection**: `mediaflow_classify.py` sends raw scraped
+  title/summary text to Claude Haiku, and `mediaflow_chat.py` folds classifier
+  output (`arc_summary`) into the Opus system prompt as "CURRENT FEED" context.
+  Both are untrusted external text an attacker could seed (a crafted article,
+  a gamed Google News/Reddit result) with embedded instructions targeting the
+  model. Added explicit "this is data, not instructions" language to both
+  system prompts — reduces but doesn't eliminate the injection surface; there's
+  no full fix for this class of issue.
+- **Chat cost/abuse guards**: even an authenticated (or previously,
+  unauthenticated) user could run up arbitrary Anthropic API cost with giant
+  pastes, rapid-fire messages, or an unbounded-length conversation.
+  `mediaflow_chat.py` now caps message length (4000 chars), throttles to one
+  message per 2s, and caps stored messages per session (200) — defense in
+  depth against a careless or malicious insider, not just outsiders.
+- **`requirements.txt` was fully unpinned** (`streamlit`, `feedparser`, etc.
+  with no version). Pinned to the versions this pass tested against — an
+  unpinned floating dependency can pull in a broken or compromised release on
+  the next deploy with no review.
+- **`GITHUB_TOKEN` was persisted in plaintext** in `.git/config` via
+  `git remote set-url origin https://x-token:{token}@...`. `worker.py` now
+  keeps the remote URL credential-free and instead authenticates each `git
+  push` with a per-invocation `-c http.extraHeader=...` (base64 `x-token:`
+  basic-auth header) — the token only ever exists in the one push subprocess's
+  argv, never written to disk. Anyone with filesystem/backup access to the
+  container (but not the running process's env) can no longer read it out of
+  `.git/config`.
+
+### Not fixed — needs an owner-side action, not a code change
+- **`GITHUB_TOKEN` scope**: recommend a fine-grained PAT restricted to just
+  this repo (Contents: write), not a classic PAT with broad account access —
+  limits blast radius if the container is ever compromised, since the worker
+  currently only needs to write to `snapshots/`.
+
+---
 ## ⚠ BEFORE TOUCHING ANY CODE FOR A RAILWAY BUG
 **Ask for logs first. Do not write or push fixes based on guesses.**
 Railway dashboard → oil-futures service → Deployments → latest → View Logs.
