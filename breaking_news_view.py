@@ -10,6 +10,7 @@ import os
 import time
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from breaking_news import (
     BreakingNewsAccessError,
@@ -86,7 +87,7 @@ div[data-testid="stButton"] > button p {
 
 def _inject_breaking_news_js() -> None:
     """ESC → back button. Same guard pattern as terminal/chat JS."""
-    st.iframe(
+    components.html(
         """
         <script>
         (function() {

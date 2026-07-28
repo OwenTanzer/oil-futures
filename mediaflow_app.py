@@ -4,13 +4,17 @@ Run with: streamlit run mediaflow_app.py
 """
 
 import base64
+import html
 import json
 import os
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import streamlit as st
+import streamlit.components.v1 as components
+from auth import require_password
 from breaking_news_view import render_breaking_news
 from eia_terminal import render_terminal
 from mediaflow_chat import render_chat
@@ -78,7 +82,7 @@ def inject_hotkey_listener() -> None:
     hotkey iframe is destroyed, killing its MutationObserver; on return the
     guards prevented re-setup, so new Streamlit iframes never got the handler.
     """
-    st.iframe(
+    components.html(
         """
         <script>
         (function() {
@@ -124,7 +128,7 @@ def inject_hotkey_listener() -> None:
 def inject_tz_converter() -> None:
     """Renders once per full page load. Handles timezone conversion and
     periodic page reload so backgrounded tabs stay current."""
-    st.iframe(
+    components.html(
         f"""
         <script>
         function convertTimestamps() {{
@@ -180,14 +184,27 @@ def item_counts() -> tuple[int, int]:
 
 # ── rendering ─────────────────────────────────────────────────────────────────
 
+def _safe_href(url: str) -> str:
+    """Escape for use in an href attribute, refusing non-http(s) schemes
+    (e.g. javascript:) that RSS/aggregator feeds could otherwise inject."""
+    try:
+        if urlparse(url or "").scheme in ("http", "https"):
+            return html.escape(url, quote=True)
+    except ValueError:
+        pass
+    return "#"
+
+
 def render_item(item: dict, show_arc_tag: bool = False) -> None:
     arc      = item.get("arc", "")
     color    = ARC_COLOR.get(arc, "#999")
     conflict = item.get("conflict", False)
     ts_display, ts_iso = fmt_dt_utc(item.get("published", ""))
-    source   = item.get("source", "")
-    summary  = item.get("arc_summary") or item.get("title", "")
-    link     = item.get("link", "#")
+    # source/summary/link are sourced from external RSS feeds and news
+    # aggregators, so they're treated as untrusted before going into HTML.
+    source   = html.escape(item.get("source", ""))
+    summary  = html.escape(item.get("arc_summary") or item.get("title", ""))
+    link     = _safe_href(item.get("link", "#"))
 
     arc_tag = ""
     if show_arc_tag and arc:
@@ -305,6 +322,9 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+
+    if not require_password():
+        return
 
     if st.session_state.get("mode") == "terminal":
         render_terminal()
