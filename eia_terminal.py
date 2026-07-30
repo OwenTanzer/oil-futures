@@ -72,6 +72,9 @@ TERMINAL_CSS = """
 [data-testid="collapsedControl"]   { display: none; }
 .block-container { padding-top: 1rem !important; padding-bottom: 4rem !important; }
 * { font-family: 'Oxanium', monospace !important; }
+[data-testid="stIconMaterial"] {
+    font-family: "Material Symbols Rounded", "Material Icons" !important;
+}
 h1, h2, h3, h4, label, p, div, span, button { color: #1a1a1a !important; }
 hr { border-color: #ddd !important; }
 .term-line { font-size: 0.88em; margin: 0; padding: 0; line-height: 1.6; }
