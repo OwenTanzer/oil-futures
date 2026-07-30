@@ -11,6 +11,8 @@ from futures_market import (
     add_months,
     calculate_cracks,
     contract_symbol,
+    last_trading_day,
+    validate_contract_active,
     validate_freshness,
     validate_join,
 )
@@ -58,7 +60,7 @@ class FakeAdapter:
 
 class MissingLegAdapter(FakeAdapter):
     def fetch_quote(self, product: str, month: date) -> ContractQuote:
-        if product == "HO" and month == date(2026, 8, 1):
+        if product == "HO" and month == date(2026, 9, 1):
             raise MarketDataError("fixture missing leg")
         return super().fetch_quote(product, month)
 
@@ -87,6 +89,26 @@ class FuturesMarketTest(unittest.TestCase):
         self.assertEqual(contract_symbol("CL", date(2026, 9, 1)), "CLU26.NYM")
         self.assertEqual(contract_symbol("RB", date(2027, 1, 1)), "RBF27.NYM")
 
+    def test_cme_last_trading_day_rules_cover_product_boundaries(self):
+        self.assertEqual(last_trading_day("CL", date(2026, 9, 1)), date(2026, 8, 20))
+        self.assertEqual(last_trading_day("CL", date(2026, 6, 1)), date(2026, 5, 19))
+        self.assertEqual(last_trading_day("RB", date(2026, 9, 1)), date(2026, 8, 31))
+        self.assertEqual(last_trading_day("HO", date(2027, 1, 1)), date(2026, 12, 31))
+
+    def test_contract_is_valid_through_expiry_and_rejected_afterward(self):
+        cases = {
+            "CL": date(2026, 8, 20),
+            "RB": date(2026, 8, 31),
+            "HO": date(2026, 8, 31),
+        }
+        for product, expected in cases.items():
+            candidate = quote(product, date(2026, 9, 1), 80.0)
+            on_expiry = datetime(expected.year, expected.month, expected.day, 16, tzinfo=timezone.utc)
+            after_expiry = on_expiry + timedelta(days=1)
+            self.assertEqual(validate_contract_active(candidate, on_expiry).last_trade_date, expected.isoformat())
+            with self.assertRaisesRegex(MarketDataError, "contract expired"):
+                validate_contract_active(candidate, after_expiry)
+
     def test_crack_formulas_and_negative_values(self):
         values = calculate_cracks(cl=100.0, rb=2.0, ho=2.5)
         self.assertAlmostEqual(values["gasoline"], -16.0)
@@ -113,6 +135,9 @@ class FuturesMarketTest(unittest.TestCase):
         self.assertAlmostEqual(result["front_to_last"], 5.0)
         self.assertEqual(result["calendar_spreads"][0]["structure"], "backwardation")
         self.assertIsNone(result["max_contango"])
+        self.assertEqual(result["requested_months"], 6)
+        self.assertEqual(result["returned_months"], 6)
+        self.assertTrue(all(row["last_trade_date"] for row in result["quotes"]))
 
     def test_cracks_use_only_explicit_same_month_legs(self):
         service = MarketDataService(FakeAdapter(), now_fn=lambda: NOW)
@@ -121,17 +146,31 @@ class FuturesMarketTest(unittest.TestCase):
         first = result["rows"][0]
         self.assertEqual(first["cl"]["delivery_month"], first["rb"]["delivery_month"])
         self.assertEqual(first["rb"]["delivery_month"], first["ho"]["delivery_month"])
-        self.assertAlmostEqual(first["gasoline"], 25.0)
-        self.assertAlmostEqual(first["distillate"], 46.0)
-        self.assertAlmostEqual(first["three_two_one"], 32.0)
+        self.assertAlmostEqual(first["gasoline"], 25.58)
+        self.assertAlmostEqual(first["distillate"], 46.58)
+        self.assertAlmostEqual(first["three_two_one"], 32.58)
 
     def test_missing_crack_leg_skips_only_that_delivery_month(self):
         service = MarketDataService(MissingLegAdapter(), now_fn=lambda: NOW)
         result = service.cracks(6)
-        self.assertEqual(result["rows"][0]["delivery_month"], "2026-09")
+        self.assertEqual(result["rows"][0]["delivery_month"], "2026-10")
         self.assertTrue(any("fixture missing leg" in warning for warning in result["warnings"]))
+        omitted = {item["delivery_month"]: item for item in result["omissions"]}
+        self.assertIn("2026-09", omitted)
+        self.assertIn("contract expired", omitted["2026-08"]["reason"])
+        self.assertEqual(omitted["2026-09"]["missing_legs"], ["HOU26.NYM"])
+        self.assertIn("fixture missing leg", omitted["2026-09"]["reason"])
+
+    def test_fresh_cache_exposes_provenance(self):
+        service = MarketDataService(FakeAdapter(), now_fn=lambda: NOW)
+        live = service.curve(6)
+        cached = service.curve(6)
+        self.assertEqual(live["cache_status"], "live_fetch")
+        self.assertEqual(cached["cache_status"], "fresh_cache")
+        self.assertGreaterEqual(cached["cache_age_seconds"], 0)
 
     def test_stale_cache_is_used_after_refresh_failure(self):
+
         adapter = FakeAdapter()
         service = MarketDataService(adapter, cache_ttl=-1, stale_ttl=3600, now_fn=lambda: NOW)
         fresh = service.curve(6)
@@ -140,6 +179,27 @@ class FuturesMarketTest(unittest.TestCase):
         fallback = service.curve(6)
         self.assertTrue(fallback["is_stale"])
         self.assertIn("Live refresh failed", fallback["warnings"][-1])
+
+    def test_yahoo_parser_rejects_null_contract_result(self):
+        payload = {"chart": {"error": None, "result": [None]}}
+        with self.assertRaisesRegex(MarketDataError, "contract result is not an object"):
+            YahooChartAdapter.parse_quote(payload, "CL", date(2026, 9, 1), "https://example.test")
+
+    def test_yahoo_parser_rejects_partial_session_shape(self):
+        meta = {
+            "symbol": "RBU26.NYM",
+            "instrumentType": "FUTURE",
+            "exchangeName": "NYM",
+            "currency": "USD",
+            "longName": "RBOB Gasoline Sep 26",
+            "regularMarketPrice": 3.21,
+            "regularMarketVolume": 1200,
+            "regularMarketTime": int(NOW.timestamp()),
+            "currentTradingPeriod": {"regular": None},
+        }
+        payload = {"chart": {"error": None, "result": [{"meta": meta}]}}
+        with self.assertRaisesRegex(MarketDataError, "invalid regular-session metadata"):
+            YahooChartAdapter.parse_quote(payload, "RB", date(2026, 9, 1), "https://example.test")
 
     def test_yahoo_parser_rejects_symbol_mismatch(self):
         payload = {

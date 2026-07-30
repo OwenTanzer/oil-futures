@@ -33,23 +33,34 @@ Every quote must pass all of these checks before display or calculation:
 2. Instrument type is `FUTURE`, exchange is `NYM`, and currency is USD.
 3. The returned name matches the expected product and delivery month/year.
 4. Price is finite and positive; volume is absent or non-negative.
-5. Timestamp is valid. During an active session, a quote older than 30 minutes
+5. The contract is still active under its CME rule-derived last trading day.
+   CL terminates three business days before the 25th of the month before
+   delivery (or before the preceding business day when the 25th is closed).
+   RB and HO terminate on the last business day before the delivery month. The
+   product rules and derived date are carried with every snapshot and quote.
+6. Timestamp is valid. During an active session, a quote older than 30 minutes
    is retained but visibly marked stale (important for thin back months). The
    absolute maximum accepted age is four days.
-6. Crack legs use the same delivery month and trading date. During an active
+7. Crack legs use the same delivery month and trading date. During an active
    session their timestamps may differ by no more than 30 minutes.
 
 The application discloses that Yahoo is delayed and that the endpoint does not
-publish an exact delay. It shows explicit symbols, prices, volumes, and UTC
-timestamps beside the charts. Live values are cached for five minutes. A failed
-refresh may use a clearly marked cached snapshot for up to six hours.
+publish an exact delay. It shows explicit symbols, prices, volumes, UTC quote
+times, last-trade dates, and source URLs beside the charts. Each snapshot also
+exposes retrieval time, `live_fetch` / `fresh_cache` / `stale_fallback` status,
+visible cache age, and requested-versus-returned month coverage. Live values are
+cached for five minutes; failed refreshes can use a marked snapshot for six hours.
 
-The Yahoo chart response does not expose the exchange's exact contract
-expiration timestamp. The adapter therefore validates the explicit delivery
-month encoded in both the symbol and returned contract name, starts discovery
-with the next calendar delivery month, and rejects responses that are expired
-in practice because their market timestamps are more than four days old. A
-licensed feed with authoritative expiration metadata is still preferred.
+Every skipped delivery month is retained as a structured omission containing
+the exact missing contract symbols and fetch or join-validation reason. The UI
+keeps the summary compact while making all warnings and omissions expandable.
+
+The rule-derived expiration calendar covers NYMEX business-day weekends, New
+Year's Day, Martin Luther King Jr. Day, Presidents Day, Good Friday, Memorial
+Day, Juneteenth, Independence Day, Labor Day, Thanksgiving, and Christmas.
+CME can amend the trading or holiday schedule for an already-listed contract;
+a licensed feed exposing authoritative per-contract expiration metadata remains
+the production preference for handling those exceptional notices automatically.
 
 ## Calculations
 

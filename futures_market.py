@@ -7,6 +7,7 @@ the curve, calendar-spread, or crack-spread calculations.
 
 from __future__ import annotations
 
+import calendar
 import math
 import threading
 import time
@@ -41,6 +42,12 @@ PRODUCTS: dict[str, ProductSpec] = {
     "HO": ProductSpec("HO", ("Heating Oil", "ULSD"), "USD/gal", 42.0),
 }
 
+CME_RULE_SOURCES = {
+    "CL": "https://www.cmegroup.com/markets/energy/crude-oil/light-sweet-crude.contractSpecs.html",
+    "RB": "https://www.cmegroup.com/markets/energy/refined-products/rbob-gasoline.contractSpecs.html",
+    "HO": "https://www.cmegroup.com/markets/energy/refined-products/heating-oil.contractSpecs.html",
+}
+
 
 class MarketDataError(RuntimeError):
     """A market-data response could not be fetched or validated."""
@@ -59,6 +66,7 @@ class ContractQuote:
     session_end: str | None
     source: str
     source_url: str
+    last_trade_date: str | None = None
     is_stale: bool = False
     staleness_note: str | None = None
 
@@ -86,6 +94,102 @@ def contract_symbol(product: str, delivery_month: date) -> str:
 
 def _month_label(value: date) -> str:
     return value.strftime("%Y-%m")
+
+
+def _observed_fixed_holiday(value: date) -> date:
+    if value.weekday() == 5:
+        return value - timedelta(days=1)
+    if value.weekday() == 6:
+        return value + timedelta(days=1)
+    return value
+
+
+def _nth_weekday(year: int, month: int, weekday: int, occurrence: int) -> date:
+    first = date(year, month, 1)
+    offset = (weekday - first.weekday()) % 7
+    return first + timedelta(days=offset + 7 * (occurrence - 1))
+
+
+def _last_weekday(year: int, month: int, weekday: int) -> date:
+    last = date(year, month, calendar.monthrange(year, month)[1])
+    return last - timedelta(days=(last.weekday() - weekday) % 7)
+
+
+def _easter_sunday(year: int) -> date:
+    """Gregorian Easter using the Meeus/Jones/Butcher algorithm."""
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = (h + l - 7 * m + 114) % 31 + 1
+    return date(year, month, day)
+
+
+def _nymex_holidays(year: int) -> set[date]:
+    """Full-day U.S. energy-market holidays used by CME expiry rules."""
+    holidays = {
+        _observed_fixed_holiday(date(year, 1, 1)),
+        _nth_weekday(year, 1, 0, 3),
+        _nth_weekday(year, 2, 0, 3),
+        _easter_sunday(year) - timedelta(days=2),
+        _last_weekday(year, 5, 0),
+        _observed_fixed_holiday(date(year, 7, 4)),
+        _nth_weekday(year, 9, 0, 1),
+        _nth_weekday(year, 11, 3, 4),
+        _observed_fixed_holiday(date(year, 12, 25)),
+    }
+    if year >= 2022:
+        holidays.add(_observed_fixed_holiday(date(year, 6, 19)))
+    return holidays
+
+
+def is_nymex_business_day(value: date) -> bool:
+    if value.weekday() >= 5:
+        return False
+    return value not in (_nymex_holidays(value.year) | _nymex_holidays(value.year + 1))
+
+
+def _previous_business_day(value: date) -> date:
+    current = value - timedelta(days=1)
+    while not is_nymex_business_day(current):
+        current -= timedelta(days=1)
+    return current
+
+
+def _subtract_business_days(value: date, count: int) -> date:
+    current = value
+    for _ in range(count):
+        current = _previous_business_day(current)
+    return current
+
+
+def last_trading_day(product: str, delivery_month: date) -> date:
+    """Return the CME rule-derived last trading day for a CL/RB/HO contract."""
+    if product not in PRODUCTS:
+        raise MarketDataError(f"Unsupported product: {product}")
+    month = date(delivery_month.year, delivery_month.month, 1)
+    prior_month = add_months(month, -1)
+    if product == "CL":
+        twenty_fifth = date(prior_month.year, prior_month.month, 25)
+        reference_day = twenty_fifth if is_nymex_business_day(twenty_fifth) else _previous_business_day(twenty_fifth)
+        return _subtract_business_days(reference_day, 3)
+    last_day = date(prior_month.year, prior_month.month, calendar.monthrange(prior_month.year, prior_month.month)[1])
+    while not is_nymex_business_day(last_day):
+        last_day -= timedelta(days=1)
+    return last_day
+
+
+def _parse_delivery_month(value: str) -> date:
+    try:
+        return datetime.strptime(value, "%Y-%m").date().replace(day=1)
+    except ValueError as exc:
+        raise MarketDataError(f"Invalid delivery month: {value!r}") from exc
 
 
 class YahooChartAdapter:
@@ -144,7 +248,10 @@ class YahooChartAdapter:
         results = chart.get("result")
         if not isinstance(results, list) or len(results) != 1:
             raise MarketDataError(f"{symbol}: expected exactly one contract result")
-        meta = results[0].get("meta")
+        result = results[0]
+        if not isinstance(result, dict):
+            raise MarketDataError(f"{symbol}: contract result is not an object")
+        meta = result.get("meta")
         if not isinstance(meta, dict):
             raise MarketDataError(f"{symbol}: missing metadata")
 
@@ -179,7 +286,12 @@ class YahooChartAdapter:
         quote_dt = datetime.fromtimestamp(epoch, tz=timezone.utc)
         quote_et = quote_dt.astimezone(EASTERN)
 
-        period = meta.get("currentTradingPeriod", {}).get("regular", {})
+        periods = meta.get("currentTradingPeriod")
+        if periods is not None and not isinstance(periods, dict):
+            raise MarketDataError(f"{symbol}: invalid trading-period metadata")
+        period = (periods or {}).get("regular", {})
+        if not isinstance(period, dict):
+            raise MarketDataError(f"{symbol}: invalid regular-session metadata")
         session_start = _epoch_iso(period.get("start"))
         session_end = _epoch_iso(period.get("end"))
 
@@ -195,6 +307,7 @@ class YahooChartAdapter:
             session_end=session_end,
             source=YahooChartAdapter.source_name,
             source_url=f"https://finance.yahoo.com/quote/{symbol}",
+            last_trade_date=last_trading_day(product, delivery_month).isoformat(),
         )
 
 
@@ -212,7 +325,20 @@ def _is_active_session(quote: ContractQuote, now: datetime) -> bool:
     return start <= now <= end
 
 
+def validate_contract_active(quote: ContractQuote, now: datetime) -> ContractQuote:
+    delivery_month = _parse_delivery_month(quote.delivery_month)
+    expected = last_trading_day(quote.product, delivery_month)
+    if quote.last_trade_date and quote.last_trade_date != expected.isoformat():
+        raise MarketDataError(
+            f"{quote.symbol}: last-trade-date mismatch ({quote.last_trade_date}; expected {expected.isoformat()})"
+        )
+    if now.astimezone(EASTERN).date() > expected:
+        raise MarketDataError(f"{quote.symbol}: contract expired after {expected.isoformat()}")
+    return quote if quote.last_trade_date else replace(quote, last_trade_date=expected.isoformat())
+
+
 def validate_freshness(quote: ContractQuote, now: datetime) -> ContractQuote:
+    quote = validate_contract_active(quote, now)
     quote_time = datetime.fromisoformat(quote.quote_time)
     age = now - quote_time
     if age < timedelta(minutes=-5):
@@ -233,11 +359,13 @@ def validate_join(quotes: list[ContractQuote], now: datetime) -> None:
         raise MarketDataError("No quotes to join")
     trading_dates = {quote.trading_date for quote in quotes}
     if len(trading_dates) != 1:
-        raise MarketDataError("Contract legs are from different trading dates")
+        details = ", ".join(f"{quote.symbol}={quote.trading_date}" for quote in quotes)
+        raise MarketDataError(f"Contract legs are from different trading dates ({details})")
     timestamps = [datetime.fromisoformat(quote.quote_time) for quote in quotes]
     if any(_is_active_session(quote, now) for quote in quotes):
         if max(timestamps) - min(timestamps) > timedelta(minutes=30):
-            raise MarketDataError("Contract-leg timestamps differ by more than 30 minutes")
+            details = ", ".join(f"{quote.symbol}={quote.quote_time}" for quote in quotes)
+            raise MarketDataError(f"Contract-leg timestamps differ by more than 30 minutes ({details})")
 
 
 def calculate_cracks(cl: float, rb: float, ho: float) -> dict[str, float]:
@@ -254,6 +382,7 @@ def calculate_cracks(cl: float, rb: float, ho: float) -> dict[str, float]:
 @dataclass
 class _CacheItem:
     created_monotonic: float
+    created_at: str
     payload: Any
 
 
@@ -288,20 +417,25 @@ class MarketDataService:
         with self._lock:
             cached = self._cache.get(key)
         if cached and time.monotonic() - cached.created_monotonic <= self.cache_ttl:
-            return dict(cached.payload)
+            cache_age = time.monotonic() - cached.created_monotonic
+            result = dict(cached.payload)
+            result.update(cache_status="fresh_cache", cache_age_seconds=round(cache_age, 1))
+            return result
         try:
             payload = builder()
         except MarketDataError as exc:
             if cached and time.monotonic() - cached.created_monotonic <= self.stale_ttl:
                 fallback = dict(cached.payload)
                 fallback["is_stale"] = True
+                fallback["cache_status"] = "stale_fallback"
+                fallback["cache_age_seconds"] = round(time.monotonic() - cached.created_monotonic, 1)
                 fallback["warnings"] = list(fallback.get("warnings", [])) + [
                     f"Live refresh failed; showing cached data: {exc}"
                 ]
                 return fallback
             raise
         with self._lock:
-            self._cache[key] = _CacheItem(time.monotonic(), payload)
+            self._cache[key] = _CacheItem(time.monotonic(), self.now_fn().isoformat(), payload)
         return dict(payload)
 
     def _candidate_months(self, requested: int) -> list[date]:
@@ -311,10 +445,13 @@ class MarketDataService:
         # Extra candidates allow an expired/stale front contract to be skipped.
         return [add_months(current, offset) for offset in range(1, requested + 4)]
 
-    def _fetch_many(self, products: tuple[str, ...], requested: int) -> tuple[dict[tuple[str, str], ContractQuote], list[str]]:
+    def _fetch_many(
+        self, products: tuple[str, ...], requested: int
+    ) -> tuple[dict[tuple[str, str], ContractQuote], list[str], dict[tuple[str, str], str], list[date]]:
         candidates = self._candidate_months(requested)
         found: dict[tuple[str, str], ContractQuote] = {}
         warnings: list[str] = []
+        failures: dict[tuple[str, str], str] = {}
         now = self.now_fn()
         pending: list[tuple[str, date]] = []
         cache_now = time.monotonic()
@@ -323,8 +460,19 @@ class MarketDataService:
                 for month in candidates:
                     month_label = _month_label(month)
                     cached = self._quote_cache.get((product, month_label))
+                    expiry = last_trading_day(product, month)
+                    if now.astimezone(EASTERN).date() > expiry:
+                        symbol = contract_symbol(product, month)
+                        reason = f"{symbol}: contract expired after {expiry.isoformat()}"
+                        failures[(product, month_label)] = reason
+                        warnings.append(reason)
+                        continue
                     if cached and cache_now - cached.created_monotonic <= self.cache_ttl:
-                        found[(product, month_label)] = cached.payload
+                        try:
+                            found[(product, month_label)] = validate_freshness(cached.payload, now)
+                        except MarketDataError as exc:
+                            failures[(product, month_label)] = str(exc)
+                            warnings.append(str(exc))
                     else:
                         pending.append((product, month))
         with ThreadPoolExecutor(max_workers=8) as pool:
@@ -341,10 +489,16 @@ class MarketDataService:
                     if quote.is_stale and quote.staleness_note:
                         warnings.append(f"{quote.symbol}: {quote.staleness_note}")
                     with self._lock:
-                        self._quote_cache[(product, quote.delivery_month)] = _CacheItem(time.monotonic(), quote)
+                        self._quote_cache[(product, quote.delivery_month)] = _CacheItem(
+                            time.monotonic(), self.now_fn().isoformat(), quote
+                        )
                 except (MarketDataError, requests.RequestException) as exc:
-                    warnings.append(f"{symbol}: {exc}")
-        return found, warnings
+                    reason = str(exc)
+                    if not reason.startswith(symbol):
+                        reason = f"{symbol}: {reason}"
+                    failures[(product, _month_label(month))] = reason
+                    warnings.append(reason)
+        return found, warnings, failures, candidates
 
     def _base_payload(self, kind: str, warnings: list[str]) -> dict[str, Any]:
         return {
@@ -353,17 +507,30 @@ class MarketDataService:
             "delay": self.adapter.delay_label,
             "retrieved_at": self.now_fn().isoformat(),
             "is_stale": False,
+            "cache_status": "live_fetch",
+            "cache_age_seconds": 0.0,
+            "contract_rule_sources": CME_RULE_SOURCES,
             "warnings": warnings,
         }
 
     def _build_curve(self, requested: int) -> dict[str, Any]:
-        found, warnings = self._fetch_many(("CL",), requested)
+        found, warnings, failures, candidates = self._fetch_many(("CL",), requested)
         quotes = sorted(
             (quote for (product, _), quote in found.items() if product == "CL"),
             key=lambda quote: quote.delivery_month,
         )[:requested]
         if len(quotes) < 2:
             raise MarketDataError("Fewer than two valid WTI contract months were available")
+        last_selected = _parse_delivery_month(quotes[-1].delivery_month)
+        omissions = []
+        for month in candidates:
+            label = _month_label(month)
+            if month <= last_selected and ("CL", label) not in found:
+                omissions.append({
+                    "delivery_month": label,
+                    "missing_legs": [contract_symbol("CL", month)],
+                    "reason": failures.get(("CL", label), "No validated quote returned"),
+                })
         rows = [quote.to_dict() for quote in quotes]
         spreads = []
         for front, back in zip(quotes, quotes[1:]):
@@ -385,26 +552,45 @@ class MarketDataService:
             "last_price": quotes[-1].price,
             "front_to_last": quotes[0].price - quotes[-1].price,
             "stale_quote_count": sum(1 for quote in quotes if quote.is_stale),
+            "requested_months": requested,
+            "returned_months": len(quotes),
+            "omissions": omissions,
             "max_backwardation": max(backwardated, key=lambda row: row["spread"]) if backwardated else None,
             "max_contango": min(contangoed, key=lambda row: row["spread"]) if contangoed else None,
         })
         return payload
 
     def _build_cracks(self, requested: int) -> dict[str, Any]:
-        found, warnings = self._fetch_many(("CL", "RB", "HO"), requested)
-        month_sets = [
-            {month for (product, month) in found if product == product_key}
-            for product_key in ("CL", "RB", "HO")
-        ]
-        common_months = sorted(set.intersection(*month_sets))
+        found, warnings, failures, candidates = self._fetch_many(("CL", "RB", "HO"), requested)
         rows: list[dict[str, Any]] = []
+        omissions: list[dict[str, Any]] = []
         now = self.now_fn()
-        for month in common_months:
+        for delivery in candidates:
+            month = _month_label(delivery)
+            missing_products = [product for product in ("CL", "RB", "HO") if (product, month) not in found]
+            if missing_products:
+                missing_symbols = [contract_symbol(product, delivery) for product in missing_products]
+                reasons = [
+                    failures.get((product, month), f"{contract_symbol(product, delivery)}: no validated quote")
+                    for product in missing_products
+                ]
+                omissions.append({
+                    "delivery_month": month,
+                    "missing_legs": missing_symbols,
+                    "reason": " | ".join(reasons),
+                })
+                continue
             legs = [found[(product, month)] for product in ("CL", "RB", "HO")]
             try:
                 validate_join(legs, now)
             except MarketDataError as exc:
-                warnings.append(f"{month}: {exc}")
+                reason = f"{month}: {exc}"
+                warnings.append(reason)
+                omissions.append({
+                    "delivery_month": month,
+                    "missing_legs": [],
+                    "reason": reason,
+                })
                 continue
             values = calculate_cracks(legs[0].price, legs[1].price, legs[2].price)
             rows.append({
@@ -420,6 +606,9 @@ class MarketDataService:
             raise MarketDataError("No same-month CL/RB/HO contract sets passed validation")
         payload = self._base_payload("cracks", warnings)
         payload["rows"] = rows
+        payload["requested_months"] = requested
+        payload["returned_months"] = len(rows)
+        payload["omissions"] = omissions
         payload["formula"] = {
             "gasoline": "RB × 42 − CL",
             "distillate": "HO × 42 − CL",
