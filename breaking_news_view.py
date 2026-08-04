@@ -19,6 +19,7 @@ from breaking_news import (
     fetch_doc_text,
     parse_reports,
 )
+from tz_convert import inject_converter, parse_doc_timestamp, resolve_source_tz
 
 POLL_INTERVAL_SECONDS = 60
 
@@ -92,16 +93,35 @@ def _inject_breaking_news_js() -> None:
         <script>
         (function() {
             var doc = window.parent.document;
+
+            // The view is gone once its back button leaves the DOM. Without
+            // this check the keydown listener and the MutationObserver below
+            // survive navigation for the rest of the session — and the
+            // observer re-scans every iframe on every DOM mutation, on a
+            // dashboard whose feed mutates constantly.
+            function stillMounted() {
+                return !!doc.querySelector('.st-key-bn_back');
+            }
+            function teardown() {
+                doc.removeEventListener('keydown', fireBack);
+                doc.__bn_esc__ = null;
+                if (doc.__bn_obs__) {
+                    try { doc.__bn_obs__.disconnect(); } catch (ignore) {}
+                    doc.__bn_obs__ = null;
+                }
+            }
+
             function fireBack(e) {
                 if (e.key !== 'Escape') return;
                 var btn = doc.querySelector('.st-key-bn_back button');
-                if (btn) btn.click();
+                if (btn) { btn.click(); } else { teardown(); }
             }
             if (doc.__bn_esc__) doc.removeEventListener('keydown', doc.__bn_esc__);
             doc.__bn_esc__ = fireBack;
             doc.addEventListener('keydown', fireBack);
 
             function attachToIframes() {
+                if (!stillMounted()) { teardown(); return; }
                 doc.querySelectorAll('iframe').forEach(function(f) {
                     try {
                         if (!f.__bn_attached__) {
@@ -119,6 +139,26 @@ def _inject_breaking_news_js() -> None:
         </script>
         """,
         height=1,
+    )
+
+
+def _timestamp_html(report) -> str:
+    """The doc's own string is always what's rendered; when we can pin it to an
+    instant it also carries data-utc and the browser rewrites it in place to the
+    viewer's zone. No JS, or an instant we couldn't derive → the author's
+    timezone shows through unchanged: correct, just not local.
+    """
+    escaped = html.escape(report.timestamp_display)
+    instant = parse_doc_timestamp(
+        report.timestamp_display,
+        report.report_id,
+        resolve_source_tz("BREAKING_NEWS_SOURCE_TZ"),
+    )
+    if instant is None:
+        return escaped
+    return (
+        f'<span data-utc="{html.escape(instant.isoformat(), quote=True)}">'
+        f'{escaped}</span>'
     )
 
 
@@ -211,7 +251,11 @@ def compute_selection(
 def _breaking_news_body() -> None:
     now = time.monotonic()
     last = st.session_state.get("bn_last_fetch")
-    if last is None or now - last >= POLL_INTERVAL_SECONDS:
+    # run_every fires ~POLL_INTERVAL after the previous run *began*, but
+    # bn_last_fetch is stamped after the fetch *completes*, so elapsed time is
+    # always a fraction under the interval and a strict >= comparison skips
+    # every other cycle — halving the real refresh rate to 2 minutes.
+    if last is None or now - last >= POLL_INTERVAL_SECONDS - 5:
         _do_fetch_and_reparse()
 
     reports = st.session_state.get("bn_cache_reports", [])
@@ -273,7 +317,7 @@ def _breaking_news_body() -> None:
         st.warning(f"⚠ This report is missing content for: {', '.join(empty_core)}. Showing available content only.")
 
     st.markdown(f'<div class="bn-headline">{html.escape(report.headline)}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="bn-timestamp">{html.escape(report.timestamp_display)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="bn-timestamp">{_timestamp_html(report)}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="bn-interpretation">{html.escape(report.interpretation)}</div>', unsafe_allow_html=True)
 
     bubbles = _render_fact_bubbles(report.physical_facts, "bn-fact-physical")
@@ -284,6 +328,9 @@ def _breaking_news_body() -> None:
 def render_breaking_news() -> None:
     st.markdown(BREAKING_NEWS_CSS, unsafe_allow_html=True)
     _inject_breaking_news_js()
+    # Converter only — the newscenter's 2-minute page reload must not follow the
+    # user in here; this view refreshes itself via its own fragment poll.
+    inject_converter()
 
     col_back, col_title = st.columns([1, 9])
     with col_back:

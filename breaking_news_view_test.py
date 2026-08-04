@@ -150,9 +150,67 @@ def test_do_fetch_and_reparse() -> None:
         bv.st = real_st
 
 
+# ── timestamp rendering ───────────────────────────────────────────────────────
+
+def test_timestamp_html() -> None:
+    def report_with(ts: str, rid: str = "HFW-20260712-1516") -> BreakingNewsReport:
+        r = _report(rid)
+        r.timestamp_display = ts
+        return r
+
+    # both live HFW templates carry a machine-readable instant
+    out = bv._timestamp_html(report_with("2026-07-12 15:16 EDT"))
+    check("ts html: old template gets data-utc", 'data-utc="2026-07-12T19:16:00+00:00"' in out)
+    check("ts html: original text preserved", ">2026-07-12 15:16 EDT<" in out)
+
+    out = bv._timestamp_html(report_with("August 3, 2026, 3:17 PM EDT", "HFW-20260803-1517"))
+    check("ts html: new template gets data-utc", 'data-utc="2026-08-03T19:17:00+00:00"' in out)
+
+    # 12:20 AM must be 00:20 local, not 12:20 — the classic %I trap
+    out = bv._timestamp_html(report_with("July 28, 2026, 12:20 AM EDT", "HFW-20260728-0020"))
+    check("ts html: midnight not noon", 'data-utc="2026-07-28T04:20:00+00:00"' in out)
+
+    # HFW report IDs carry the prefix; the ID fallback must still work
+    out = bv._timestamp_html(report_with("unparseable heading"))
+    check("ts html: falls back to prefixed report id",
+          'data-utc="2026-07-12T19:16:00+00:00"' in out)
+
+    # A trailing word of 1-4 letters is indistinguishable from a zone
+    # abbreviation, so it is treated as an unrecognised zone and blocks the
+    # ID fallback. That is the fail-closed direction: we show the doc's raw
+    # string rather than attach an offset we are only guessing at.
+    out = bv._timestamp_html(report_with("unparseable heading text"))
+    check("ts html: trailing short word treated as unknown zone",
+          "data-utc" not in out)
+
+    # ambiguous zone -> no data-utc at all, raw string only
+    out = bv._timestamp_html(report_with("July 28, 2026, 12:20 AM AST"))
+    check("ts html: ambiguous zone emits no data-utc", "data-utc" not in out)
+    check("ts html: ambiguous zone still shows the text",
+          "July 28, 2026, 12:20 AM AST" in out)
+
+    # nothing usable at all -> plain escaped text
+    out = bv._timestamp_html(report_with("", "not-an-id"))
+    check("ts html: nothing usable emits no data-utc", "data-utc" not in out)
+
+    # the timestamp is doc-sourced text and must stay escaped either way
+    out = bv._timestamp_html(report_with("<script>alert(1)</script>", "not-an-id"))
+    check("ts html: escapes raw HTML", "<script>" not in out)
+    check("ts html: escapes to entities", "&lt;script&gt;" in out)
+
+    # every report in the frozen live fixture resolves
+    from breaking_news import parse_reports
+    with open("breaking_news_fixture_live.txt", encoding="utf-8") as fh:
+        reports, _ = parse_reports(fh.read())
+    check("ts html: fixture has reports", len(reports) == 18)
+    check("ts html: every fixture report resolves",
+          all("data-utc" in bv._timestamp_html(r) for r in reports))
+
+
 def run() -> None:
     test_compute_selection()
     test_do_fetch_and_reparse()
+    test_timestamp_html()
     print()
     print(f"{_total - _failures}/{_total} passed")
     if _failures:
