@@ -110,6 +110,11 @@ future processor work.
 Operational bucket:
 - **UNMAPPED** — unrelated/noisy feed items retained for auditability, not a crisis arc
 
+Actor/topic view:
+- **Russia** — cross-arc dashboard filter for Russian exports and sanctions, Ukrainian
+  attacks on Russian energy infrastructure, OPEC+ policy, and related logistics.
+  Russia remains a view over the event-type arcs rather than a separate classifier arc.
+
 ### Data Sources Master List
 
 **TIER 1 — Confirmed Live (probed 2026-06-07)**
@@ -167,6 +172,8 @@ article URLs. Deduplication across queries is the primary integration challenge.
 | OFAC iran oil sanctions| ...q=OFAC+iran+oil+sanctions...                                    | Sanctions/enforcement arc                  |
 | Kharg Jask oil terminal| ...q=Kharg+Jask+oil+terminal...                                    | Iranian export infrastructure              |
 | japan china iran oil   | ...q=japan+china+iran+oil...                                       | Asia demand/reserve exposure               |
+| russia oil exports sanctions | ...q=russia+oil+exports+sanctions...                          | Russian exports, sanctions, and price-cap effects |
+| ukraine russian energy | ...q=ukraine+russian+oil+refinery+pipeline...                       | Attacks and outages affecting Russian energy infrastructure |
 
 **TIER 4 — Official Data (not news, but ForcingFunction inputs)**
 | Source               | URL                                         | What it provides                           |
@@ -222,6 +229,8 @@ Identified after Google News RSS discovery — sources missed by outlet-first th
 | Bing: brent WTI iran | bing.com/news/search?q=brent+WTI+iran&format=rss | LIVE | Market price summaries |
 | Bing: CENTCOM iran hormuz | bing.com/news/search?q=CENTCOM+iran+hormuz&format=rss | LIVE | US military summaries |
 | Bing: japan china iran oil | bing.com/news/search?q=japan+china+iran+oil&format=rss | LIVE | Asian exposure summaries |
+| Bing: russia oil exports | bing.com/news/search?q=russia+oil+exports+sanctions&format=rss | ADDED | Russian exports and sanctions |
+| Bing: ukraine russian energy | bing.com/news/search?q=ukraine+russian+oil+refinery+pipeline&format=rss | ADDED | Russian refinery and pipeline disruptions |
 | Yahoo News          | news.yahoo.com/rss/                               | SKIP    | 2/50 relevant; no summaries; low value   |
 
 **Priority 2 — Specialist direct RSS (probed 2026-06-07)**

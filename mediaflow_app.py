@@ -22,6 +22,8 @@ from eia_terminal import render_terminal
 from mediaflow_chat import render_chat
 from worker_state import load_cycle_state, request_refresh
 
+from mediaflow_topics import is_russia_item
+
 HERE            = Path(__file__).parent
 DATA_DIR        = Path(os.environ.get("DATA_DIR", HERE))
 CLASSIFIED_FILE = DATA_DIR / "mediaflow_classified.json"
@@ -280,6 +282,7 @@ def live_feed() -> None:
     main_items = [i for i in items if i.get("arc") in ARC_LABEL]
 
     tab_labels = ["All"] + list(ARC_LABEL.values())
+    tab_labels.append("Russia")
     if other_items:
         tab_labels.append("Other")
     tabs = st.tabs(tab_labels)
@@ -288,13 +291,20 @@ def live_feed() -> None:
         for item in main_items[:all_limit]:
             render_item(item, show_arc_tag=True)
 
-    for tab, arc in zip(tabs[1:], arc_keys):
+    for tab, arc in zip(tabs[1:1 + len(arc_keys)], arc_keys):
         with tab:
             arc_items = [i for i in items if i.get("arc") == arc]
             if not arc_items:
                 st.caption("No items.")
             for item in arc_items[:ITEMS_PER_ARC]:
                 render_item(item, show_arc_tag=False)
+
+    with tabs[1 + len(arc_keys)]:
+        russia_items = [i for i in items if is_russia_item(i)]
+        if not russia_items:
+            st.caption("No items.")
+        for item in russia_items[:ITEMS_PER_ARC]:
+            render_item(item, show_arc_tag=True)
 
     if other_items:
         with tabs[-1]:

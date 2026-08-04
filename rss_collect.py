@@ -70,6 +70,8 @@ FEEDS = {
     "GNews: OFAC iran oil sanctions":   "https://news.google.com/rss/search?q=OFAC+iran+oil+sanctions&hl=en-US&gl=US&ceid=US:en",
     "GNews: Kharg Jask oil terminal":   "https://news.google.com/rss/search?q=Kharg+Jask+oil+terminal&hl=en-US&gl=US&ceid=US:en",
     "GNews: japan china iran oil":      "https://news.google.com/rss/search?q=japan+china+iran+oil&hl=en-US&gl=US&ceid=US:en",
+    "GNews: russia oil exports sanctions": "https://news.google.com/rss/search?q=russia+oil+exports+sanctions&hl=en-US&gl=US&ceid=US:en",
+    "GNews: ukraine russian energy":       "https://news.google.com/rss/search?q=ukraine+russian+oil+refinery+pipeline&hl=en-US&gl=US&ceid=US:en",
     # Bing News search queries
     "Bing: iran hormuz":        "https://www.bing.com/news/search?q=iran+hormuz&format=rss",
     "Bing: hormuz tanker":      "https://www.bing.com/news/search?q=hormuz+tanker&format=rss",
@@ -79,6 +81,8 @@ FEEDS = {
     "Bing: brent WTI iran":     "https://www.bing.com/news/search?q=brent+WTI+iran&format=rss",
     "Bing: CENTCOM iran hormuz":"https://www.bing.com/news/search?q=CENTCOM+iran+hormuz&format=rss",
     "Bing: japan china iran oil":"https://www.bing.com/news/search?q=japan+china+iran+oil&format=rss",
+    "Bing: russia oil exports": "https://www.bing.com/news/search?q=russia+oil+exports+sanctions&format=rss",
+    "Bing: ukraine russian energy": "https://www.bing.com/news/search?q=ukraine+russian+oil+refinery+pipeline&format=rss",
     # Reddit
     "Reddit r/iran":        "https://www.reddit.com/r/iran/.rss",
     "Reddit r/worldnews":   "https://www.reddit.com/r/worldnews/.rss",
@@ -143,7 +147,8 @@ KEYWORDS = [
     "operation epic fury", "middle east", "mideast", "oil",
     "crude", "opec", "spr", "energy security", "shipping",
     "maritime", "vessel", "fujairah", "kuwait", "bahrain",
-    "brent", "wti",
+    "brent", "wti", "refinery", "refineries", "oil pipeline",
+    "diesel", "fuel oil",
 ]
 KEYWORD_RE = re.compile("|".join(KEYWORDS), re.IGNORECASE)
 
