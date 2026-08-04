@@ -39,8 +39,7 @@ REQUIRED_LABELS = [
 ATX_PREFIX_RE = re.compile(r"(?m)^#{1,6}[ \t]*")
 
 HEADING_RE = re.compile(
-    r"^(HFW-[\w-]+)\s*—\s*(.+?)\s*—\s*"
-    r"(\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}\s+[A-Za-z]{2,5})\s*$",
+    r"^(HFW-[\w-]+)\s*—\s*(.+?)\s*—\s*(\S[^\n]*?)\s*$",
     re.MULTILINE,
 )
 
