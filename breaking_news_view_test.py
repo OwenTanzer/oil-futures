@@ -119,12 +119,12 @@ def test_do_fetch_and_reparse() -> None:
         check("fetch: errors with no prior cache -> stale, no reports", fake_st.session_state.get("bn_cache_reports") is None)
         check("fetch: errors with no prior cache -> status set", "format errors only" in fake_st.session_state.bn_last_status)
 
-        # partial parse with no prior cache: populate anyway, flagged stale
+        # partial parse with no prior cache: populate, not stale (data is current, errors shown separately)
         fake_st.session_state.clear()
         bv.parse_reports = lambda text: (good_reports, one_error)
         bv._do_fetch_and_reparse()
         check("fetch: partial parse with no prior cache still populates", fake_st.session_state.bn_cache_reports == good_reports)
-        check("fetch: partial parse with no prior cache is stale", fake_st.session_state.bn_stale is True)
+        check("fetch: partial parse with no prior cache is not stale", fake_st.session_state.bn_stale is False)
 
         # access error leaves any existing cache untouched
         fake_st.session_state.clear()
