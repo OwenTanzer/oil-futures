@@ -166,12 +166,11 @@ def _do_fetch_and_reparse() -> None:
         return
 
     # Fully clean parse, or a first-ever partial parse with no prior cache.
+    # Data is current even when some reports failed to parse — don't mark stale.
     st.session_state.bn_cache_reports = reports
     st.session_state.bn_cache_errors = errors
-    st.session_state.bn_stale = bool(errors)
-    st.session_state.bn_last_status = (
-        f"{len(errors)} report(s) skipped due to source-format errors" if errors else ""
-    )
+    st.session_state.bn_stale = False
+    st.session_state.bn_last_status = ""
     st.session_state.bn_last_fetch = time.monotonic()
 
 
