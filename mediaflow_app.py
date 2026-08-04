@@ -16,6 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from auth import require_password
 from breaking_news_view import render_breaking_news
+from node_status_view import render_node_status
 from eia_terminal import render_terminal
 from mediaflow_chat import render_chat
 from worker_state import load_cycle_state, request_refresh
@@ -338,6 +339,10 @@ def main() -> None:
         render_breaking_news()
         return
 
+    if st.session_state.get("mode") == "node_status":
+        render_node_status()
+        return
+
     # Rendered once per full page load — MutationObserver stays alive
     # for the entire session, converting timestamps as the fragment adds them.
     inject_tz_converter()
@@ -399,7 +404,10 @@ def main() -> None:
                 st.session_state.pop("bn_last_fetch", None)  # force fresh fetch on entry
                 st.rerun()
         with bd:
-            st.button("□", key="dash_d", use_container_width=True)
+            if st.button("□", key="goto_node_status", help="Node Status", use_container_width=True):
+                st.session_state.mode = "node_status"
+                st.session_state.pop("ns_last_fetch", None)
+                st.rerun()
 
     # ── live feed ─────────────────────────────────────────────────────────────
     inject_hotkey_listener()
