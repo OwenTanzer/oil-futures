@@ -249,8 +249,16 @@ def _breaking_news_body() -> None:
         st.caption(f"⚠ showing cached data — {st.session_state.get('bn_last_status', 'last refresh failed')}")
 
     if errors:
-        names = ", ".join(f"{e.report_id or '?'} ({e.detail})" for e in errors)
-        st.caption(f"⚠ {len(errors)} report(s) skipped due to source-format errors: {names}")
+        dismissed = st.session_state.get("bn_dismissed_error_ids", frozenset())
+        new_errors = [e for e in errors if e.report_id not in dismissed]
+        if new_errors:
+            col_msg, col_btn = st.columns([11, 1])
+            with col_msg:
+                names = ", ".join(f"{e.report_id or '?'} ({e.detail})" for e in new_errors)
+                st.caption(f"⚠ {len(new_errors)} report(s) skipped due to source-format errors: {names}")
+            with col_btn:
+                if st.button("✕", key="bn_dismiss_errors", help="Dismiss"):
+                    st.session_state.bn_dismissed_error_ids = dismissed | {e.report_id for e in errors}
 
     report = id_to_report[st.session_state["bn_dropdown"]]
 
