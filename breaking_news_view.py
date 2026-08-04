@@ -227,7 +227,7 @@ def _breaking_news_body() -> None:
         return
 
     # ── auto-advance / dropdown selection ──────────────────────────────────
-    ids = [r.report_id for r in reports]
+    ids = sorted((r.report_id for r in reports), reverse=True)
     new_sel, new_prev_newest = compute_selection(
         ids,
         st.session_state.get("bn_prev_newest_id"),
