@@ -1,7 +1,7 @@
 """
 MediaFlow classifier: assigns arc, short summary, and conflict flag to each
-collected item via the Anthropic API. Runs incrementally and only sends
-unclassified items to the model.
+collected item via the configured LLM provider. Runs incrementally and only
+sends unclassified items to the model.
 """
 
 import json
@@ -11,18 +11,21 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import anthropic
+from classifier_providers import (
+    ClassificationProvider,
+    ProviderConfig,
+    create_provider,
+    load_provider_config,
+)
 
 HERE = Path(__file__).parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", HERE))
 ITEMS_FILE = DATA_DIR / "mediaflow_items.json"
 CLASSIFIED_FILE = DATA_DIR / "mediaflow_classified.json"
-KEYS_FILE = Path(r"C:\Users\Owen\.claude\keys.env")
 
 BATCH_SIZE = 30
 MAX_CONCURRENT_BATCHES = 4
 MAX_RETRIES = 2
-CLASSIFY_TIMEOUT_SECONDS = 90
 
 ARCS = [
     "KINETIC",
@@ -32,16 +35,6 @@ ARCS = [
     "IEA_SUPPLY",
     "UNMAPPED",
 ]
-
-
-def load_api_key() -> str:
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return os.environ["ANTHROPIC_API_KEY"].strip()
-    if KEYS_FILE.exists():
-        for line in KEYS_FILE.read_text(encoding="utf-8").splitlines():
-            if line.startswith("ANTHROPIC_API_KEY"):
-                return line.split("=", 1)[1].strip()
-    raise ValueError("ANTHROPIC_API_KEY not found in environment or keys.env")
 
 
 def build_system_prompt(arcs: list[str] = ARCS) -> str:
@@ -113,7 +106,7 @@ def normalize_result(result: dict, item: dict, arcs: list[str] = ARCS) -> dict:
 
 
 def classify_batch(
-    client: anthropic.Anthropic,
+    provider: ClassificationProvider,
     batch: list[dict],
     arcs: list[str] = ARCS,
 ) -> list[dict]:
@@ -126,29 +119,26 @@ def classify_batch(
         }
         for item in batch
     ]
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    response_text = provider.generate(
+        system_prompt=build_system_prompt(arcs),
+        user_payload=json.dumps(
+            payload, ensure_ascii=False, separators=(",", ":")
+        ),
         max_tokens=2048,
-        system=build_system_prompt(arcs),
-        messages=[{
-            "role": "user",
-            "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-        }],
-        timeout=CLASSIFY_TIMEOUT_SECONDS,
     )
-    return parse_response(response.content[0].text)
+    return parse_response(response_text)
 
 
 def classify_batch_with_retries(
-    api_key: str,
+    provider_config: ProviderConfig,
     batch: list[dict],
     arcs: list[str] = ARCS,
 ) -> list[dict]:
     last_error: Exception | None = None
-    client = anthropic.Anthropic(api_key=api_key)
+    provider = create_provider(provider_config)
     for attempt in range(MAX_RETRIES + 1):
         try:
-            raw_results = classify_batch(client, batch, arcs)
+            raw_results = classify_batch(provider, batch, arcs)
             by_id = {r.get("id"): r for r in raw_results if isinstance(r, dict)}
             return [
                 normalize_result(by_id.get(item["id"], {}), item, arcs)
@@ -227,7 +217,10 @@ def run(arcs: list[str] = ARCS) -> int:
         f"Classifying {len(unclassified)} items in batches of {BATCH_SIZE} "
         f"({MAX_CONCURRENT_BATCHES} concurrent)..."
     )
-    api_key = load_api_key()
+    provider_config = load_provider_config()
+    print(
+        f"Provider: {provider_config.name}  Model: {provider_config.model}"
+    )
     failed = 0
     started = time.perf_counter()
     batches = [
@@ -237,7 +230,9 @@ def run(arcs: list[str] = ARCS) -> int:
 
     with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_BATCHES) as executor:
         futures = {
-            executor.submit(classify_batch_with_retries, api_key, batch, arcs): (n, batch)
+            executor.submit(
+                classify_batch_with_retries, provider_config, batch, arcs
+            ): (n, batch)
             for n, batch in enumerate(batches, start=1)
         }
         total = len(futures)

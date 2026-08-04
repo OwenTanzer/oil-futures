@@ -13,6 +13,8 @@ freshness/health.
 Environment variables:
   DATA_DIR               path to shared Railway volume (default: repo dir)
   COLLECT_INTERVAL_SECONDS  collect+classify cadence in seconds (default: 900)
+  CLASSIFIER_PROVIDER    anthropic (default), openai, or gemini
+  CLASSIFIER_MODEL       optional provider model override
   GITHUB_TOKEN           personal access token for daily snapshot commits
 """
 

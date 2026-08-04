@@ -166,7 +166,7 @@ Fully incremental — skips any URL/fingerprint already in the seen set.
 
 **MediaFlow-Classifier** (`mediaflow_classify.py`)
 Reads `mediaflow_items.json`, diffs against already-classified IDs in
-`mediaflow_classified.json`, and sends only new items to Claude Haiku in
+`mediaflow_classified.json`, and sends only new items to the configured LLM in
 batches of 30, with up to 4 concurrent API requests. Each item is assigned an
 arc, a one-sentence factual summary, and a conflict flag. Writes merged results
 back to `mediaflow_classified.json`. Fully incremental; already-classified items
@@ -178,6 +178,20 @@ Classifier API notes:
 - Model output is validated before persistence; null/invalid arcs are repaired.
 - `UNMAPPED` is an explicit arc for unrelated feed noise.
 - Next efficiency frontier: split fast arc labeling from slower summary generation.
+
+Classifier provider configuration:
+- `CLASSIFIER_PROVIDER`: `anthropic` (default), `openai`, or `gemini`.
+  The aliases `claude`, `chatgpt`, and `google` are also accepted.
+- `CLASSIFIER_MODEL`: optional model override. Provider-specific
+  `ANTHROPIC_MODEL`, `OPENAI_MODEL`, or `GEMINI_MODEL` settings are used next.
+- API keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GEMINI_API_KEY`
+  (`GOOGLE_API_KEY` is also accepted for Gemini).
+- `CLASSIFIER_API_TIMEOUT_SECONDS`: per-request timeout, default 90 seconds.
+- `CLASSIFIER_KEYS_FILE`: optional local env-file path. The legacy
+  `~/.claude/keys.env` location remains the default local fallback.
+
+Provider HTTP/SDK details are isolated in `classifier_providers.py`; batching,
+retry, parsing, validation, and persistence remain provider-independent.
 
 Arc taxonomy is a single `ARCS` list at the top of `mediaflow_classify.py`.
 Add or remove arc names there; the system prompt rebuilds automatically.
@@ -371,7 +385,8 @@ is a direct ForcingFunction variable, not just a news item. Probe separately.
 
 ### Files
 - `rss_collect.py` — collector; run manually or on scheduler
-- `mediaflow_classify.py` — incremental parallel arc classifier (Claude Haiku API)
+- `mediaflow_classify.py` — provider-neutral incremental parallel arc classifier
+- `classifier_providers.py` — Anthropic, OpenAI, and Gemini API adapters
 - `mediaflow_app.py` — Streamlit dashboard with visible/total tab counts
 - `mediaflow_items.json` — structured item store with stable IDs (collector output)
 - `mediaflow_classified.json` — arc-classified items (classifier output, dashboard input)
