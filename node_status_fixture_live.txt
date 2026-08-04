@@ -1,0 +1,131 @@
+HSN-20260804-0145 — Hormuz near-closed; Abqaiq damaged; bypasses saturated — Aug 4, 2026, 1:45 AM EDT
+
+
+Changes since last report:
+No prior HSN report exists in the destination Doc; this is the baseline snapshot. No category transitions are available.
+
+
+Network concentration risk:
+The network is concentrated on the Saudi East–West/Yanbu and UAE Habshan–Fujairah bypasses, both operating near capacity while Abqaiq is damaged and the Red Sea outlet faces Houthi interdiction. Correlated failure of Abqaiq, Yanbu/Bab el-Mandeb, or Fujairah would strand additional Gulf output; long restoration tails at Ras Laffan and Habshan, suspended BAPCO operations, and partial Basra loadings limit redundancy.
+
+
+Node status:
+Strait of Hormuz | Category 3 | Commercial traffic remains effectively closed and recent weekly transits fell to wartime lows amid vessel attacks, authorization risk, and renewed U.S.–Iran strikes. | No scalable maritime substitute exists; insurance and interdiction remain binding.
+Abqaiq | Category 1 | Current-run satellite imagery reviewed by AP confirms damage at the oil-processing complex after drone attacks, with throughput impact not yet officially quantified. | East–West Pipeline feed concentration makes restoration critical to the main Saudi bypass.
+Ras Tanura/Ju'aymah | Category 3 | Saudi ports are reported operational, but Gulf-side crude loading remains commercially impaired by the Hormuz closure. | Export relief depends on westbound diversion through Abqaiq and Yanbu.
+Saudi East–West Pipeline and Yanbu | Category 4 | The bypass is carrying near-full system load and Saudi port activity is reported normal, despite recent attacks on Yanbu-area facilities and Saudi tankers. | Red Sea egress now depends on surviving Yanbu infrastructure and safe Bab el-Mandeb passage.
+Habshan–Fujairah pipeline and Fujairah port/storage | Category 4 | Fujairah and its tanker terminal are operating at full capacity while the UAE bypass runs near full load. | This is the only large Gulf-of-Oman outlet bypassing Hormuz; new parallel capacity is not expected before 2027.
+Habshan/Ruwais/Jebel Dhanna | Category 1 | Habshan remains at roughly 60% processing capacity after confirmed attack damage, while Ruwais and Abu Dhabi petroleum ports are operational. | Recovery targets 80% by year-end and full Habshan capacity in 2027; Gulf-side exports remain Hormuz-dependent.
+Das Island | Category 3 | The petroleum port is operational, but its LNG and crude cargoes remain exposed to the impaired Hormuz transit corridor. | Limited relief comes from cargo scheduling; there is no direct overland bypass from Das.
+Kuwait: Mina al-Ahmadi | Category 1 | Repeated drone attacks caused fires and confirmed unit damage, and Kuwait has repaired enough infrastructure to recover only part of prewar output. | Restoration remains tied to refinery repair and reopening reliable Gulf tanker access.
+Kuwait: Mina Abdullah | Category 1 | Confirmed attack damage and refinery fires place the complex in physical-damage status despite broader port operations continuing. | Kuwait lacks a material Hormuz-bypass export route.
+Kuwait: Al-Zour | Category 3 | No current stoppage is reported at Kuwaiti ports and Al-Zour remains the principal intact refining outlet, but seaborne exports are trapped by shipping risk. | National output recovery depends on terminal access and intact shared utilities.
+Iraq: Basra offshore terminals (ABOT/KAAOT) | Category 2 | Basra Oil Terminal has ceased exports pending restart while associated SPM capacity is operating below full capacity. | Temporary recovery is vessel-dependent; the new Ceyhan agreement offers only partial diversification.
+Qatar: Ras Laffan/North Field | Category 1 | Iranian strikes removed about 17% of LNG export capacity with a multi-year repair horizon, and a later restart accident caused additional fatalities and disruption. | Operational ports do not replace damaged liquefaction capacity or eliminate Hormuz exposure.
+Iran: Kharg Island | Category 3 | Satellite evidence shows multiple tankers loading at intact main berths, but U.S. port blockade and contested Hormuz access constrain departures. | Limited Jask capacity cannot replace Kharg's dominant export role; damage reports outside the observed berths remain uncertain.
+Iran: South Pars/Asaluyeh | Category 1 | Strikes damaged onshore processing and partially interrupted the field, although three offshore platforms have resumed production. | Restoration depends on Asaluyeh processing and domestic gas-network repair.
+Bahrain: Sitra refinery and Saudi–Bahrain pipeline | Category 1 | Sitra suffered confirmed strike damage and BAPCO operations remain suspended even though vessel movements have resumed on a limited basis. | Pipeline-fed Saudi crude cannot restore product supply until refinery operations restart.
+Bab el-Mandeb/Red Sea approaches | Category 3 | This newly systemic chokepoint is impaired by a Houthi blockade claim and attacks on Saudi-linked tankers. | It is now the binding seaward exit for the overloaded Yanbu bypass.
+Iraq–Turkey pipeline/Ceyhan | Category 4 | A new one-year export agreement is intended to raise northern flows as southern Gulf exports remain unreliable. | Capacity and ramp timing limit its ability to replace Basra volumes.
+
+
+Sources:
+AP — Trump says Gulf leaders' input weighed heavily in decision to hold off on new Iran strikes
+AP — US launches strikes on Iranian targets after attack on American forces
+Inchcape Shipping Services — Middle East Operational Status
+AP — Mideast oil producers reduce their reliance on Hormuz
+ADNOC — Sukuk Programme 2026 Update Base Offering Memorandum
+AP — Qatar says gas export terminal blast killed 13 during restart
+AP — Targeting Gulf energy infrastructure raises long-term disruption risk
+Misbar — Three oil tankers dock at Kharg Island terminals
+Anadolu Agency — Iran resumes gas production at three South Pars platforms
+AP — New Houthi threat widens Iran war and endangers another chokepoint
+AP — Iraq and Turkey strike one-year oil pipeline deal
+
+
+HSN-20260804-0158 — Categories unchanged; diplomacy starts but chokepoints remain impaired — Aug 4, 2026, 1:58 AM EDT
+
+
+Changes since last report:
+No category transitions. Materially, U.S.–Iran/Oman contacts produced talks only over a temporary safe-navigation route; AP reported nine Sunday transits, so Hormuz remains Category 3. Red Sea insurance constraints tightened: war-risk coverage is being suspended for Saudi-linked vessels and tanker traffic was reported down 40%, leaving Bab el-Mandeb in Category 3 because the impairment remains insurance/interdiction-led rather than confirmed node damage. Inchcape reports no port-status change.
+
+
+Network concentration risk:
+Concentration remains on the Saudi East–West/Yanbu and UAE Habshan–Fujairah bypasses. API estimates their loadings more than doubled to about 5.8 million b/d after prewar Hormuz carried 15–16 million b/d, leaving large unserved dependence on any Strait reopening. Correlated failure risk now runs from damaged Abqaiq through Yanbu to Bab el-Mandeb insurance and interdiction, while Habshan restoration and Fujairah capacity constrain the UAE branch. Ceyhan's planned 750,000 b/d minimum is material but cannot replace prewar Iraqi exports of about 3.5 million b/d.
+
+
+Node status:
+Strait of Hormuz | Category 3 | No change
+Abqaiq | Category 1 | No change
+Ras Tanura/Ju'aymah | Category 3 | No change
+Saudi East–West Pipeline and Yanbu | Category 4 | No change
+Habshan–Fujairah pipeline and Fujairah port/storage | Category 4 | No change
+Habshan/Ruwais/Jebel Dhanna | Category 1 | No change
+Das Island | Category 3 | No change
+Kuwait: Mina al-Ahmadi | Category 1 | No change
+Kuwait: Mina Abdullah | Category 1 | No change
+Kuwait: Al-Zour | Category 3 | No change
+Iraq: Basra offshore terminals (ABOT/KAAOT) | Category 2 | No change
+Qatar: Ras Laffan/North Field | Category 1 | No change
+Iran: Kharg Island | Category 3 | No change
+Iran: South Pars/Asaluyeh | Category 1 | No change
+Bahrain: Sitra refinery and Saudi–Bahrain pipeline | Category 1 | No change
+Bab el-Mandeb/Red Sea approaches | Category 3 | No change
+Iraq–Turkey pipeline/Ceyhan | Category 4 | No change
+
+
+Sources:
+AP — Renewed talks leave Hormuz cargo traffic stalled
+AP — U.S. strikes, Abqaiq damage, and temporary Strait routing
+Inchcape Shipping Services — Middle East Operational Status
+API — Alternative routes have kept some Middle East crude moving
+Cinco Días — Insurers restrict Red Sea war-risk coverage
+AP — Iraq and Turkey sign a one-year oil pipeline deal
+AP — Targeting Gulf energy infrastructure raises long-term disruption risk
+ADNOC — Sukuk Programme 2026 Update Base Offering Memorandum
+AP — Qatar says Ras Laffan blast killed 13 during restart
+Misbar — Three oil tankers dock at Kharg Island terminals
+Anadolu Agency — Iran resumes gas production at three South Pars platforms
+Bapco Energies — Force majeure on group operations
+HSN-20260804-0803 — No category transitions; new Hormuz strike keeps traffic impaired — Aug 4, 2026, 8:03 AM EDT
+
+
+Changes since last report:
+No category transitions. Since HSN-20260804-0158, a new AP/UKMTO report says a cargo ship was hit by an unknown projectile at 2 a.m. local time 23 miles northeast of Al Khasab; Ambrey reported damage. U.S. and Iranian accounts of talks remain divergent, so the incident reinforces Hormuz Category 3. The Houthis also claimed an unverified drone hit near Najran airport; no mission-critical energy-node damage was reported.
+
+
+Network concentration risk:
+Concentration remains on the Saudi East–West/Yanbu and UAE Habshan–Fujairah bypasses: API says bypass loadings have more than doubled to about 5.8 million b/d, against prewar Hormuz crude flows of 15–16 million b/d. The fresh Strait strike keeps the maritime bottleneck binding; the Saudi branch remains exposed to Bab el-Mandeb/Houthi and insurance risk, the UAE branch is capped near 1.5 million b/d, Basra export facilities remain curtailed, and Ceyhan can provide only partial relief. Damaged Abqaiq, Habshan, Ras Laffan, South Pars, Kuwaiti facilities, and Sitra retain long restoration tails.
+
+
+Node status:
+Strait of Hormuz | Category 3 | A cargo ship reported projectile damage northeast of Al Khasab while safe-navigation talks remained disputed. | No scalable maritime substitute exists; interdiction, insurance, and navigational risk remain binding.
+Abqaiq | Category 1 | No change
+Ras Tanura/Ju'aymah | Category 3 | No change
+Saudi East–West Pipeline and Yanbu | Category 4 | No change
+Habshan–Fujairah pipeline and Fujairah port/storage | Category 4 | No change
+Habshan/Ruwais/Jebel Dhanna | Category 1 | No change
+Das Island | Category 3 | No change
+Kuwait: Mina al-Ahmadi | Category 1 | No change
+Kuwait: Mina Abdullah | Category 1 | No change
+Kuwait: Al-Zour | Category 3 | No change
+Iraq: Basra offshore terminals (ABOT/KAAOT) | Category 2 | No change
+Qatar: Ras Laffan/North Field | Category 1 | No change
+Iran: Kharg Island | Category 3 | No change
+Iran: South Pars/Asaluyeh | Category 1 | No change
+Bahrain: Sitra refinery and Saudi–Bahrain pipeline | Category 1 | No change
+Bab el-Mandeb/Red Sea approaches | Category 3 | Houthis repeated their Saudi-linked blockade claim and claimed a drone strike toward Najran without evidence; no energy-node damage was reported. | Yanbu output remains exposed to Red Sea interdiction and insurance limits.
+Iraq–Turkey pipeline/Ceyhan | Category 4 | No change
+
+
+Sources:
+AP — Cargo ship reports being struck in Strait of Hormuz
+Inchcape Shipping Services — Middle East Operational Status
+API — Alternative routes have kept some Middle East crude moving
+AP — Gulf energy infrastructure faces long-term disruption
+ADNOC — 2026 Sukuk Programme Base Offering Memorandum
+AP — Qatar says Ras Laffan blast killed 13 during restart
+Anadolu Agency — South Pars resumes at three offshore platforms
+Misbar — Three tankers dock at Kharg Island terminals
+Bapco Energies — Force majeure on group operations
+AP — Iraq and Turkey sign one-year Ceyhan pipeline deal

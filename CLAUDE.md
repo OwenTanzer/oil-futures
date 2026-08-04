@@ -412,6 +412,118 @@ Watch Reports Google Doc rather than the MediaFlow classification pipeline.
   the public export endpoint (no OAuth/service account/credential JSON is
   used or required for this feature).
 
+### Location Status Monitor (Hormuz Node Status snapshots)
+
+Fifth dashboard destination (`node_status` mode), reached via the 4th nav
+button (`□`). Backed by the Hormuz Node Status Google Doc — independent of both
+the MediaFlow pipeline and `breaking_news.py`.
+
+- `node_status_view.py` — parser and Streamlit renderer in one module. Splits
+  the doc's plain-text export on `HSN-` report headings, selects the
+  lexicographically-latest report ID (`YYYYMMDD-HHMM`, so lex order is
+  chronological order), and renders each node in the `Node status:` section as
+  a color-coded card (Category 1 red / 2 orange / 3 amber / 4 purple). Polls
+  every ~300s while the view is open. Node lines are pipe-delimited:
+  `Name | Category N | Status | Note`, where the note is optional.
+- `node_status_test.py` — plain-assert tests (no pytest) covering the parser,
+  all `fetch_hsn_text` error paths, card-render escaping, and
+  `_do_fetch_and_reparse()`'s cache-preservation behavior via a fake
+  session-state object, using the same pattern as `breaking_news_view_test.py`.
+  Run with `python node_status_test.py`.
+- `node_status_fixture_live.txt` — frozen plain-text export of the real HSN doc
+  (4 reports, 17 nodes in the newest), used as a compatibility baseline exactly
+  like `breaking_news_fixture_live.txt`. **Regenerate this whenever the doc's
+  format changes**, and never let the synthetic fixtures stand in for it: the
+  feature originally shipped with a heading separator that matched nothing in
+  the real document, and a fully synthetic 40-test suite passed anyway.
+
+**Source format (verified against the live doc, Aug 2026).** Headings are
+`HSN-YYYYMMDD-HHMM — summary — timestamp` using an **em dash**, not `---`;
+Google Docs autocorrects `---` as you type, which is the same thing HFW hit.
+The parser accepts em dash, en dash and `---` so an author toggling autocorrect
+cannot silently break the view. Node lines are
+`Name | Category N | Status | Note`, note optional, and `No change` is a common
+3-field form. Node names legitimately contain apostrophes, en dashes, slashes
+and colons (`Ras Tanura/Ju'aymah`, `Saudi East–West Pipeline`, `Kuwait: Al-Zour`).
+
+**Source-drift handling.** The doc is hand-maintained, so the parser assumes it
+will drift and refuses to fail silently — a monitoring view that renders an
+empty grid confidently is worse than one that says it lost the thread:
+- A parse yielding zero nodes never replaces a cache that has nodes. It keeps
+  the last good snapshot and flags it stale, matching `breaking_news_view.py`.
+  A renamed `Node status:` heading therefore degrades to "showing last good
+  data", not to a blank page.
+- Pipe-bearing lines inside the node section that fail to parse are counted
+  (`HsnSnapshot.skipped_lines`) and surfaced in the view rather than dropped.
+- Delimiters are split on the bare `|`, not `" | "`, so inconsistent spacing in
+  the doc doesn't silently drop every node.
+- `NEXT_SECTION_RE` uses the same character class and 80-char bound as
+  `breaking_news.py`'s `LABEL_RE`. A narrower class fails to terminate the node
+  section on real headers like `Top 5 sources:`, letting later pipe-bearing
+  prose be ingested as phantom nodes.
+- Report IDs are matched as `\d{8}-\d{4}`, not a loose `[\w-]+`. That is what
+  makes the lexicographic "latest" sort equivalent to a chronological one — a
+  loose pattern lets a stray `HSN-DRAFT-…` heading sort above every real report.
+- The category field is matched anchored (`^Category\s+([1-4])$`). Matching the
+  first digit anywhere read `Category 12` as Category 1 and accepted a bare `3`.
+- A duplicate report ID resolves to the **last** copy in document order — the
+  natural way a correction is made to a hand-maintained doc is to append a
+  re-issue — and the duplicate count is surfaced in the view. (This differs
+  deliberately from `breaking_news.py`, which keeps the first copy and emits a
+  `duplicate_id` error; that view lists all reports, this one shows only the
+  newest, so a superseded copy winning would be silently wrong.)
+
+**Timezones.** `tz_convert.py` holds the shared browser-side converter: the
+server emits `<span data-utc="…">original text</span>` and the script rewrites
+it into the viewer's zone. This was previously welded into
+`mediaflow_app.py::inject_tz_converter()` together with a 2-minute page-reload
+timer, which is why no sub-view could use it — a forced reload inside the chat
+or a report view would interrupt the reader. The two are now separate:
+`tz_convert.inject_converter()` is conversion only, and `inject_tz_converter()`
+layers the reload on top for the newscenter. (The converter also now disconnects
+its previous MutationObserver; each Streamlit rerun used to stack another
+full-document observer on the same parent document.)
+
+`node_status_view.parse_report_timestamp()` turns the heading's human string
+into that UTC instant. It **fails closed at every step** — if it cannot be
+confident, it returns `None` and the doc's original string is rendered
+untouched. A timestamp left in the author's zone is inconvenient; one silently
+shifted to the wrong zone is a false reading on a crisis instrument. Specifics:
+- Zone abbreviations map to *fixed* offsets, because the abbreviation already
+  encodes the offset — "EDT" means UTC-4 regardless of whether that date is
+  really in DST, so the doc is honoured rather than second-guessed.
+- Ambiguous abbreviations are deliberately **absent** from the table and are
+  never guessed: `AST` is Atlantic *and* Arabia, `CST` is US Central, China and
+  Cuba, `IST` is India, Israel and Ireland, `BST` is Britain and Bangladesh,
+  `CDT` is US Central and Cuba. On a Gulf dashboard, guessing `AST` is a silent
+  7-hour error. An unrecognised zone token also blocks the report-ID fallback,
+  since that fallback's own zone assumption would be equally unfounded.
+- With no zone stated, the time is read in `HSN_SOURCE_TZ` (default
+  `America/New_York`, via `ZoneInfo`, so DST is applied correctly). An invalid
+  value degrades to UTC rather than taking the view down.
+- Last resort is the report ID itself (`HSN-20260804-0803` is the same wall
+  clock as "8:03 AM EDT"), read in the same source zone.
+
+Breaking News still renders its timestamps raw. HFW headings use
+`2026-07-12 15:16 EDT`, a format `parse_report_timestamp` already handles, so
+adopting it there is a small follow-up rather than new work.
+
+**Accessibility.** Badge colours are one step darker than the obvious Tailwind
+ramp because badge text is white at ~11px — WCAG "small text", needing 4.5:1.
+The original `#ea580c`/`#d97706` measured 3.56:1 and 3.19:1. Current values
+measure 6.47 / 5.18 / 5.02 / 7.10:1. Body greys were likewise raised from
+`#999`/`#aaa` (2.85:1, 2.23:1) to `#6b7280`. If these are ever restyled, keep
+the ratios — categories 1–3 are adjacent hues, so the text label in the badge
+is what carries the meaning for colour-blind viewers.
+
+**Configuration:**
+- `HSN_DOC_ID` (optional) — Google Doc ID for the source document. Defaults to
+  the current Hormuz Node Status doc if unset.
+- `HSN_EXPORT_URL` (optional) — full export URL override.
+- **Required manual step:** as with Breaking News, the source Google Doc must be
+  shared as "Anyone with the link can view" — fetched unauthenticated via the
+  public export endpoint.
+
 ### Design Principles
 - Each arc is a clean chronological list — one entry per distinct event, not per article
 - Contradictions are flagged explicitly, not silently resolved
