@@ -17,6 +17,7 @@ import streamlit.components.v1 as components
 from auth import require_password
 from breaking_news_view import render_breaking_news
 from node_status_view import render_node_status
+from tz_convert import CONVERTER_JS
 from eia_terminal import render_terminal
 from mediaflow_chat import render_chat
 from worker_state import load_cycle_state, request_refresh
@@ -128,30 +129,16 @@ def inject_hotkey_listener() -> None:
 
 def inject_tz_converter() -> None:
     """Renders once per full page load. Handles timezone conversion and
-    periodic page reload so backgrounded tabs stay current."""
+    periodic page reload so backgrounded tabs stay current.
+
+    The conversion half is shared with the sub-views via tz_convert.py; the
+    reload timer stays here because it must NOT run inside the chat or a report
+    view, where a forced reload would interrupt the user mid-read.
+    """
     components.html(
         f"""
         <script>
-        function convertTimestamps() {{
-            try {{
-                var els = window.parent.document.querySelectorAll('[data-utc]');
-                els.forEach(function(el) {{
-                    var utc = el.getAttribute('data-utc');
-                    if (!utc || el.getAttribute('data-converted')) return;
-                    var dt = new Date(utc);
-                    if (isNaN(dt)) return;
-                    el.textContent = dt.toLocaleString('en-US', {{
-                        month: 'short', day: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                        timeZoneName: 'short'
-                    }});
-                    el.setAttribute('data-converted', '1');
-                }});
-            }} catch(e) {{}}
-        }}
-        convertTimestamps();
-        var observer = new MutationObserver(convertTimestamps);
-        observer.observe(window.parent.document.body, {{childList: true, subtree: true}});
+        {CONVERTER_JS}
 
         // Reload every 2 minutes regardless of tab focus state.
         // Page reloads pick up fresh data from the background collector.
