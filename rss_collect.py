@@ -72,6 +72,10 @@ FEEDS = {
     "GNews: japan china iran oil":      "https://news.google.com/rss/search?q=japan+china+iran+oil&hl=en-US&gl=US&ceid=US:en",
     "GNews: russia oil exports sanctions": "https://news.google.com/rss/search?q=russia+oil+exports+sanctions&hl=en-US&gl=US&ceid=US:en",
     "GNews: ukraine russian energy":       "https://news.google.com/rss/search?q=ukraine+russian+oil+refinery+pipeline&hl=en-US&gl=US&ceid=US:en",
+    "GNews: china iran oil imports":       "https://news.google.com/rss/search?q=china+iran+oil+imports+sanctions&hl=en-US&gl=US&ceid=US:en",
+    "GNews: china teapot refiners":        "https://news.google.com/rss/search?q=china+teapot+refiners+iranian+crude&hl=en-US&gl=US&ceid=US:en",
+    "GNews: china strategic petroleum reserve": "https://news.google.com/rss/search?q=china+strategic+petroleum+reserve+crude&hl=en-US&gl=US&ceid=US:en",
+    "GNews: PLA navy hormuz malacca":      "https://news.google.com/rss/search?q=PLA+navy+hormuz+malacca+tanker+escort&hl=en-US&gl=US&ceid=US:en",
     # Bing News search queries
     "Bing: iran hormuz":        "https://www.bing.com/news/search?q=iran+hormuz&format=rss",
     "Bing: hormuz tanker":      "https://www.bing.com/news/search?q=hormuz+tanker&format=rss",
@@ -83,6 +87,9 @@ FEEDS = {
     "Bing: japan china iran oil":"https://www.bing.com/news/search?q=japan+china+iran+oil&format=rss",
     "Bing: russia oil exports": "https://www.bing.com/news/search?q=russia+oil+exports+sanctions&format=rss",
     "Bing: ukraine russian energy": "https://www.bing.com/news/search?q=ukraine+russian+oil+refinery+pipeline&format=rss",
+    "Bing: china iran oil imports": "https://www.bing.com/news/search?q=china+iran+oil+imports+sanctions&format=rss",
+    "Bing: china teapot refiners": "https://www.bing.com/news/search?q=china+teapot+refiners+iranian+crude&format=rss",
+    "Bing: china strategic petroleum reserve": "https://www.bing.com/news/search?q=china+strategic+petroleum+reserve+crude&format=rss",
     # Reddit
     "Reddit r/iran":        "https://www.reddit.com/r/iran/.rss",
     "Reddit r/worldnews":   "https://www.reddit.com/r/worldnews/.rss",

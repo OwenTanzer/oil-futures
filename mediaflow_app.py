@@ -22,7 +22,7 @@ from eia_terminal import render_terminal
 from mediaflow_chat import render_chat
 from worker_state import load_cycle_state, request_refresh
 
-from mediaflow_topics import is_russia_item
+from mediaflow_topics import is_china_item, is_russia_item
 
 HERE            = Path(__file__).parent
 DATA_DIR        = Path(os.environ.get("DATA_DIR", HERE))
@@ -283,6 +283,7 @@ def live_feed() -> None:
 
     tab_labels = ["All"] + list(ARC_LABEL.values())
     tab_labels.append("Russia")
+    tab_labels.append("China")
     if other_items:
         tab_labels.append("Other")
     tabs = st.tabs(tab_labels)
@@ -304,6 +305,13 @@ def live_feed() -> None:
         if not russia_items:
             st.caption("No items.")
         for item in russia_items[:ITEMS_PER_ARC]:
+            render_item(item, show_arc_tag=True)
+
+    with tabs[2 + len(arc_keys)]:
+        china_items = [i for i in items if is_china_item(i)]
+        if not china_items:
+            st.caption("No items.")
+        for item in china_items[:ITEMS_PER_ARC]:
             render_item(item, show_arc_tag=True)
 
     if other_items:
