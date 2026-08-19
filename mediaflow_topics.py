@@ -22,23 +22,42 @@ def is_russia_item(item: dict) -> bool:
     return bool(RUSSIA_RE.search(text))
 
 
-CHINA_RE = re.compile(
+# Unambiguous China-specific markers/entities: any one of these alone is
+# enough to call an item China-related. Bare "china" is excluded when it's
+# the middle word of "South China Sea" -- that phrase names a body of water
+# claimed by multiple countries, and a mention of it alone (e.g. a
+# Philippines/Vietnam story) is not evidence the item concerns China.
+CHINA_ENTITY_RE = re.compile(
     r"\b(?:"
-    r"china|chinese|beijing|"
-    r"sinopec|cnooc|petrochina|"
-    r"shandong|teapot refiner|"
-    r"malacca strait|south china sea|"
-    r"yuan|renminbi|"
-    r"pla navy|people's liberation army"
-    r")\b",
+    r"chinese|beijing|"
+    r"sinopec|cnooc|petrochina|cnpc|china national petroleum|unipec|sinochem|"
+    r"shandong|teapot refiners?|"
+    r"pla navy|people[’']s liberation army"
+    r")\b"
+    r"|(?<!south )\bchina\b(?!\s+sea)",
     re.IGNORECASE,
 )
 
+# "malacca strait", "south china sea", "yuan", and "renminbi" are
+# deliberately NOT matched here: they come up in stories about other
+# claimants/parties (Vietnam, Philippines, Indonesia, generic currency
+# mentions) with no China connection at all. Gating them on "also contains
+# a China marker" doesn't add anything either, since a China marker already
+# matches by itself above -- so a real China-Malacca story is still caught
+# via CHINA_ENTITY_RE, just not via the ambiguous term.
+
 
 def is_china_item(item: dict) -> bool:
-    """Return whether an already-relevant MediaFlow item concerns China."""
+    """Return whether an already-relevant MediaFlow item concerns China.
+
+    Deliberately excludes the "source" field: for search-query feeds
+    (GNews/Bing) that field holds the collector's query label (e.g.
+    "GNews: china iran oil imports"), not the article's actual outlet or
+    content, so including it would let the query label alone decide
+    topic membership regardless of what the article says.
+    """
     text = " ".join(
         str(item.get(field, "") or "")
-        for field in ("source", "title", "summary", "arc_summary")
+        for field in ("title", "summary", "arc_summary")
     )
-    return bool(CHINA_RE.search(text))
+    return bool(CHINA_ENTITY_RE.search(text))

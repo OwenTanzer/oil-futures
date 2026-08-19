@@ -75,7 +75,8 @@ FEEDS = {
     "GNews: china iran oil imports":       "https://news.google.com/rss/search?q=china+iran+oil+imports+sanctions&hl=en-US&gl=US&ceid=US:en",
     "GNews: china teapot refiners":        "https://news.google.com/rss/search?q=china+teapot+refiners+iranian+crude&hl=en-US&gl=US&ceid=US:en",
     "GNews: china strategic petroleum reserve": "https://news.google.com/rss/search?q=china+strategic+petroleum+reserve+crude&hl=en-US&gl=US&ceid=US:en",
-    "GNews: PLA navy hormuz malacca":      "https://news.google.com/rss/search?q=PLA+navy+hormuz+malacca+tanker+escort&hl=en-US&gl=US&ceid=US:en",
+    "GNews: PLA navy hormuz escort":       "https://news.google.com/rss/search?q=PLA+navy+hormuz+tanker+escort&hl=en-US&gl=US&ceid=US:en",
+    "GNews: PLA navy malacca security":    "https://news.google.com/rss/search?q=PLA+navy+malacca+strait+security&hl=en-US&gl=US&ceid=US:en",
     # Bing News search queries
     "Bing: iran hormuz":        "https://www.bing.com/news/search?q=iran+hormuz&format=rss",
     "Bing: hormuz tanker":      "https://www.bing.com/news/search?q=hormuz+tanker&format=rss",
@@ -90,6 +91,8 @@ FEEDS = {
     "Bing: china iran oil imports": "https://www.bing.com/news/search?q=china+iran+oil+imports+sanctions&format=rss",
     "Bing: china teapot refiners": "https://www.bing.com/news/search?q=china+teapot+refiners+iranian+crude&format=rss",
     "Bing: china strategic petroleum reserve": "https://www.bing.com/news/search?q=china+strategic+petroleum+reserve+crude&format=rss",
+    "Bing: PLA navy hormuz escort":    "https://www.bing.com/news/search?q=PLA+navy+hormuz+tanker+escort&format=rss",
+    "Bing: PLA navy malacca security": "https://www.bing.com/news/search?q=PLA+navy+malacca+strait+security&format=rss",
     # Reddit
     "Reddit r/iran":        "https://www.reddit.com/r/iran/.rss",
     "Reddit r/worldnews":   "https://www.reddit.com/r/worldnews/.rss",
