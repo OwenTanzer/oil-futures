@@ -53,3 +53,6 @@ jobs:
 
       - name: Run breaking-news view tests
         run: python breaking_news_view_test.py
+
+      - name: Run MediaFlow topic tests
+        run: python -m unittest test_mediaflow_topics.py -v
